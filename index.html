@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Memorias de la Boda</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://challenges.cloudflare.com" />
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+</head>
+
+<body>
+  <div class="app-shell">
+    <header class="hero card">
+      <div class="hero-copy">
+        <span class="eyebrow">Nuestra boda</span>
+        <h1>Dejá tu foto, tu recuerdo o un mensaje para nosotros</h1>
+        <p>
+          Escaneaste el QR del casamiento. Entrá con tu nombre, subí una foto y ayudanos a
+          construir este álbum compartido.
+        </p>
+      </div>
+
+      <div class="hero-side">
+        <div class="bubble bubble-1"></div>
+        <div class="bubble bubble-2"></div>
+        <div class="bubble bubble-3"></div>
+        <div class="dot-grid" aria-hidden="true"></div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="card entry-panel">
+        <div class="section-head">
+          <h2>Compartí tu recuerdo</h2>
+          <p>Tu nombre será visible para identificar quién compartió cada recuerdo.</p>
+        </div>
+
+        <form id="guest-form" class="stack-lg">
+          <div class="field">
+            <label for="guest-name">Nombre</label>
+            <input id="guest-name" name="guest-name" type="text" maxlength="32" placeholder="Ej: Agus" required
+              autocomplete="name" />
+            <small>Este nombre se valida contra Supabase para evitar duplicados dentro del evento.</small>
+          </div>
+
+          <div class="field">
+            <label for="memory-text">Mensaje o recuerdo</label>
+            <textarea id="memory-text" name="memory-text" rows="5" maxlength="280"
+              placeholder="Ej: La entrada estuvo hermosa, los queremos mucho."></textarea>
+          </div>
+
+          <div class="field">
+            <label for="memory-image">Foto</label>
+            <input id="memory-image" name="memory-image" type="file" accept="image/png,image/jpeg,image/webp" />
+            <small>Permitido: JPG, PNG o WEBP de hasta 6 MB.</small>
+          </div>
+
+          <div class="field">
+            <label>Verificación</label>
+            <div id="turnstile-container" class="cf-turnstile" data-sitekey="0x4AAAAAACxPfDG6_foE04af"
+              data-callback="onTurnstileSuccess" data-error-callback="onTurnstileError"
+              data-expired-callback="onTurnstileExpired" data-timeout-callback="onTurnstileTimeout"></div>
+            <small>Esto nos ayuda a evitar spam y bots durante el evento.</small>
+          </div>
+
+          <div class="inline-actions">
+            <button type="submit" class="btn btn-primary">Guardar recuerdo</button>
+          </div>
+        </form>
+
+        <div id="form-message" class="feedback" role="status" aria-live="polite"></div>
+      </section>
+
+      <section class="card preview-panel">
+        <div class="section-head">
+          <h2>Vista previa</h2>
+          <p>Así se verá tu recuerdo antes de guardarse.</p>
+        </div>
+
+        <article class="memory-card" id="preview-card">
+          <div class="memory-meta">
+            <span class="memory-author" id="preview-name">Tu nombre</span>
+            <span class="memory-date" id="preview-date">Hoy</span>
+          </div>
+
+          <p class="memory-text" id="preview-text">
+            Todavía no escribiste ningún mensaje.
+          </p>
+
+          <div class="memory-image-wrap hidden" id="preview-image-wrap">
+            <img id="preview-image" alt="Vista previa de la foto elegida" />
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <section class="card gallery-panel">
+      <div class="section-head">
+        <h2>Galería del evento</h2>
+        <p>Acá vas a poder ver los recuerdos compartidos durante la boda.</p>
+      </div>
+
+      <div class="gallery-grid" id="gallery-grid">
+        <article class="gallery-item">
+          <span class="pill">Galería</span>
+          <p>Cargando recuerdos del evento...</p>
+        </article>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>
