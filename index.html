@@ -45,15 +45,21 @@
 
         <form id="guest-form" class="stack-lg">
           <div class="field">
-            <label for="guest-name">Nombre</label>
+            <div class="field-head">
+              <label for="guest-name">Nombre</label>
+              <span class="field-counter" id="guest-name-counter" aria-live="polite">0/32</span>
+            </div>
             <input id="guest-name" name="guest-name" type="text" maxlength="32" placeholder="Ej: Agus" required
               autocomplete="name" />
             <small>Este nombre se valida contra Supabase para evitar duplicados dentro del evento.</small>
           </div>
 
           <div class="field">
-            <label for="memory-text">Mensaje o recuerdo</label>
-            <textarea id="memory-text" name="memory-text" rows="5" maxlength="280"
+            <div class="field-head">
+              <label for="memory-text">Mensaje o recuerdo</label>
+              <span class="field-counter" id="memory-text-counter" aria-live="polite">0/500</span>
+            </div>
+            <textarea id="memory-text" name="memory-text" rows="5" maxlength="500"
               placeholder="Ej: La entrada estuvo hermosa, los queremos mucho."></textarea>
           </div>
 
@@ -113,6 +119,14 @@
           <span class="pill">Cargando...</span>
           <p>Trayendo recuerdos del evento 💛</p>
         </article>
+      </div>
+
+      <div class="gallery-actions hidden" id="gallery-actions">
+        <p class="gallery-load-more-status" id="gallery-load-more-status" aria-live="polite"></p>
+        <button type="button" class="btn btn-secondary" id="gallery-load-more">
+          Cargar más recuerdos
+        </button>
+        <div class="gallery-load-more-sentinel" id="gallery-load-more-sentinel" aria-hidden="true"></div>
       </div>
     </section>
   </div>

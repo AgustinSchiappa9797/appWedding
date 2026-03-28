@@ -1,8 +1,16 @@
 import { state } from './state/appState.js';
 import { updatePreview, clearPreviewImage } from './features/preview.js';
-import { loadGallery, renderGalleryError, startGalleryAutoRefresh, stopGalleryAutoRefresh } from './features/gallery.js';
-import { bindForm } from './features/form.js';
+import {
+  bindGalleryActions,
+  destroyGalleryActions,
+  loadGallery,
+  renderGalleryError,
+  startGalleryAutoRefresh,
+  stopGalleryAutoRefresh,
+} from './features/gallery.js';
+import { bindForm, syncFormUx } from './features/form.js';
 import { bindTurnstileCallbacks } from './features/turnstile.js';
+import { bindDraftPersistence, restoreDraft, flushDraftSave } from './features/draft.js';
 import { getExistingSession } from './services/authService.js';
 import { mountProtectedUiState } from './ui/protectedUi.js';
 
@@ -19,13 +27,18 @@ async function bootstrapAccessState() {
 
 function bindLifecycleEvents() {
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
-      loadGallery({ silent: true });
+    if (document.hidden) {
+      flushDraftSave();
+      return;
     }
+
+    loadGallery({ silent: true, reset: true });
   });
 
   const cleanup = () => {
+    flushDraftSave();
     stopGalleryAutoRefresh();
+    destroyGalleryActions();
     clearPreviewImage();
   };
 
@@ -37,9 +50,13 @@ async function bootstrap() {
   mountProtectedUiState();
   bindTurnstileCallbacks();
   bindForm();
+  bindDraftPersistence();
+  bindGalleryActions();
   bindLifecycleEvents();
 
+  restoreDraft();
   updatePreview();
+  syncFormUx();
   await bootstrapAccessState();
   startGalleryAutoRefresh();
 }

@@ -105,14 +105,37 @@ export async function createMemory({ guestId, message, imagePath }) {
 export async function getImageUrl(path) {
   if (!path) return null;
 
-  const { data } = supabaseClient.storage
-    .from(CONFIG.storageBucket)
-    .getPublicUrl(path);
+  try {
+    const normalizedPath = String(path).trim().replace(/^\/+/, '');
 
-  return data?.publicUrl || null;
+    const { data } = supabaseClient.storage
+      .from(CONFIG.storageBucket)
+      .getPublicUrl(normalizedPath);
+
+    const publicUrl = data?.publicUrl || null;
+
+    if (!publicUrl) {
+      console.warn('No se pudo resolver publicUrl para la imagen:', {
+        bucket: CONFIG.storageBucket,
+        path: normalizedPath,
+      });
+      return null;
+    }
+
+    return publicUrl;
+  } catch (error) {
+    console.warn('Error resolviendo URL pública de imagen:', error, {
+      bucket: CONFIG.storageBucket,
+      path,
+    });
+    return null;
+  }
 }
 
-export async function fetchLatestMemories(limit) {
+export async function fetchMemoriesPage({ offset = 0, limit = CONFIG.galleryPageSize } = {}) {
+  const from = Math.max(0, offset);
+  const to = from + limit;
+
   const { data, error } = await supabaseClient
     .from('memories')
     .select(`
@@ -126,8 +149,16 @@ export async function fetchLatestMemories(limit) {
     `)
     .eq('event_slug', CONFIG.eventSlug)
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .range(from, to);
 
   if (error) throw error;
-  return data || [];
+
+  const rows = data || [];
+  const hasMore = rows.length > limit;
+
+  return {
+    items: hasMore ? rows.slice(0, limit) : rows,
+    hasMore,
+    nextOffset: from + Math.min(rows.length, limit),
+  };
 }

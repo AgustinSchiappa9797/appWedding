@@ -3,8 +3,42 @@ import { state } from '../state/appState.js';
 import { elements } from '../ui/elements.js';
 import { escapeHtml } from '../utils/escapeHtml.js';
 import { formatDate } from '../utils/format.js';
-import { fetchLatestMemories, getImageUrl } from '../services/memoryService.js';
+import { fetchMemoriesPage, getImageUrl } from '../services/memoryService.js';
 import { supabaseClient } from '../services/supabaseClient.js';
+
+let galleryLoadMoreObserver = null;
+
+function getSkeletonMarkup(count = CONFIG.galleryLoadMoreSkeletonCount) {
+  return Array.from({ length: count }, () => `
+    <article class="gallery-item gallery-item-skeleton" aria-hidden="true">
+      <span class="pill skeleton-block skeleton-pill"></span>
+      <small class="skeleton-block skeleton-line skeleton-line-sm"></small>
+      <div class="skeleton-copy">
+        <div class="skeleton-block skeleton-line"></div>
+        <div class="skeleton-block skeleton-line"></div>
+        <div class="skeleton-block skeleton-line skeleton-line-md"></div>
+      </div>
+      <div class="skeleton-block skeleton-image"></div>
+    </article>
+  `).join('');
+}
+
+function removeLoadMoreSkeletons() {
+  elements.galleryGrid
+    ?.querySelectorAll('[data-gallery-skeleton="true"]')
+    .forEach((node) => node.remove());
+}
+
+function appendLoadMoreSkeletons() {
+  removeLoadMoreSkeletons();
+
+  const wrapper = document.createElement('div');
+  wrapper.dataset.gallerySkeleton = 'true';
+  wrapper.className = 'gallery-skeleton-group';
+  wrapper.innerHTML = getSkeletonMarkup();
+
+  elements.galleryGrid?.appendChild(wrapper);
+}
 
 export function renderGalleryLoading() {
   elements.galleryGrid.innerHTML = `
@@ -17,6 +51,7 @@ export function renderGalleryLoading() {
       <p>Puede tardar unos segundos si hay muchas fotos.</p>
     </article>
   `;
+  renderGalleryActions();
 }
 
 export function renderGalleryEmpty() {
@@ -26,6 +61,7 @@ export function renderGalleryEmpty() {
       <p>Todavía no hay recuerdos cargados. El primero puede ser el tuyo 💛</p>
     </article>
   `;
+  renderGalleryActions();
 }
 
 export function renderGalleryError() {
@@ -35,6 +71,7 @@ export function renderGalleryError() {
       <p>No se pudo cargar la galería en este momento. Probá nuevamente en unos segundos.</p>
     </article>
   `;
+  renderGalleryActions();
 }
 
 function buildGalleryItemHtml(item) {
@@ -60,7 +97,7 @@ function scheduleRealtimeGalleryReload() {
 
   state.galleryRealtimeReloadTimer = window.setTimeout(() => {
     state.galleryRealtimeReloadTimer = null;
-    loadGallery({ silent: true });
+    loadGallery({ silent: true, reset: true });
   }, CONFIG.galleryRealtimeDebounceMs);
 }
 
@@ -69,37 +106,132 @@ function handleGalleryRealtimeChange(payload) {
   scheduleRealtimeGalleryReload();
 }
 
-export async function loadGallery({ silent = false } = {}) {
-  if (state.galleryLoading) return;
+async function hydrateGalleryItems(memories) {
+  return Promise.all(memories.map(async (item) => {
+    const guestData = Array.isArray(item.guests) ? item.guests[0] : item.guests;
+    const imageUrl = item.image_path ? await getImageUrl(item.image_path) : null;
+
+    return {
+      ...item,
+      author: guestData?.display_name || 'Invitado',
+      imageUrl,
+    };
+  }));
+}
+
+function renderGalleryItems() {
+  removeLoadMoreSkeletons();
+
+  if (!state.galleryItems.length) {
+    renderGalleryEmpty();
+    return;
+  }
+
+  elements.galleryGrid.innerHTML = state.galleryItems.map(buildGalleryItemHtml).join('');
+
+  elements.galleryGrid.querySelectorAll('img').forEach((img) => {
+    img.addEventListener('error', () => {
+      const brokenCard = img.closest('.gallery-item');
+      img.remove();
+
+      if (brokenCard && !brokenCard.querySelector('.gallery-image-fallback')) {
+        const fallback = document.createElement('p');
+        fallback.className = 'gallery-image-fallback';
+        fallback.textContent = 'No se pudo cargar esta imagen.';
+        brokenCard.appendChild(fallback);
+      }
+    }, { once: true });
+  });
+
+  renderGalleryActions();
+}
+
+function renderGalleryActions() {
+  if (!elements.galleryActions || !elements.galleryLoadMoreButton) return;
+
+  const hasItems = state.galleryItems.length > 0;
+  const shouldShowActions = hasItems && state.galleryHasMore;
+  const isBusy = state.galleryLoadingMore || state.galleryLoading;
+
+  elements.galleryActions.classList.toggle('hidden', !shouldShowActions);
+  elements.galleryLoadMoreButton.disabled = isBusy;
+  elements.galleryLoadMoreButton.textContent = state.galleryLoadingMore
+    ? 'Cargando más...'
+    : 'Cargar más recuerdos';
+
+  if (elements.galleryLoadMoreStatus) {
+    if (!hasItems) {
+      elements.galleryLoadMoreStatus.textContent = '';
+    } else if (!state.galleryHasMore) {
+      elements.galleryLoadMoreStatus.textContent = `Ya se cargaron ${state.galleryItems.length} recuerdos.`;
+    } else if (state.galleryLoadingMore) {
+      elements.galleryLoadMoreStatus.textContent = 'Cargando más recuerdos...';
+    } else {
+      elements.galleryLoadMoreStatus.textContent = `${state.galleryItems.length} recuerdos cargados.`;
+    }
+  }
+}
+
+function disconnectGalleryLoadMoreObserver() {
+  if (!galleryLoadMoreObserver) return;
+  galleryLoadMoreObserver.disconnect();
+  galleryLoadMoreObserver = null;
+}
+
+function maybeLoadMoreFromObserver(entries) {
+  const [entry] = entries || [];
+  if (!entry?.isIntersecting) return;
+  loadMoreGallery({ triggeredByObserver: true });
+}
+
+function initGalleryLoadMoreObserver() {
+  disconnectGalleryLoadMoreObserver();
+
+  if (!('IntersectionObserver' in window) || !elements.galleryLoadMoreSentinel) {
+    return;
+  }
+
+  galleryLoadMoreObserver = new IntersectionObserver(
+    maybeLoadMoreFromObserver,
+    {
+      root: null,
+      rootMargin: CONFIG.galleryInfiniteScrollRootMargin,
+      threshold: 0.01,
+    },
+  );
+
+  galleryLoadMoreObserver.observe(elements.galleryLoadMoreSentinel);
+}
+
+export async function loadGallery({ silent = false, reset = false } = {}) {
+  if (state.galleryLoading || state.galleryLoadingMore) return;
 
   try {
     state.galleryLoading = true;
+
+    if (reset) {
+      state.galleryItems = [];
+      state.galleryOffset = 0;
+      state.galleryHasMore = true;
+    }
 
     if (!silent && !state.hasLoadedGalleryOnce) {
       renderGalleryLoading();
     }
 
-    const memories = await fetchLatestMemories(CONFIG.galleryLimit);
+    const page = await fetchMemoriesPage({
+      offset: 0,
+      limit: CONFIG.galleryPageSize,
+    });
 
-    if (memories.length === 0) {
-      renderGalleryEmpty();
-      state.hasLoadedGalleryOnce = true;
-      return;
-    }
+    const hydratedItems = await hydrateGalleryItems(page.items);
 
-    const items = await Promise.all(memories.map(async (item) => {
-      const guestData = Array.isArray(item.guests) ? item.guests[0] : item.guests;
-      const imageUrl = item.image_path ? await getImageUrl(item.image_path) : null;
-
-      return {
-        ...item,
-        author: guestData?.display_name || 'Invitado',
-        imageUrl,
-      };
-    }));
-
-    elements.galleryGrid.innerHTML = items.map(buildGalleryItemHtml).join('');
+    state.galleryItems = hydratedItems;
+    state.galleryOffset = page.nextOffset;
+    state.galleryHasMore = page.hasMore;
     state.hasLoadedGalleryOnce = true;
+
+    renderGalleryItems();
   } catch (error) {
     console.error(error);
 
@@ -108,7 +240,64 @@ export async function loadGallery({ silent = false } = {}) {
     }
   } finally {
     state.galleryLoading = false;
+    renderGalleryActions();
   }
+}
+
+export async function loadMoreGallery() {
+  if (
+    state.galleryLoading ||
+    state.galleryLoadingMore ||
+    !state.galleryHasMore
+  ) {
+    return;
+  }
+
+  try {
+    state.galleryLoadingMore = true;
+    renderGalleryActions();
+    appendLoadMoreSkeletons();
+
+    const page = await fetchMemoriesPage({
+      offset: state.galleryOffset,
+      limit: CONFIG.galleryPageSize,
+    });
+
+    const hydratedItems = await hydrateGalleryItems(page.items);
+
+    const existingIds = new Set(state.galleryItems.map((item) => item.id));
+    const mergedItems = [...state.galleryItems];
+
+    hydratedItems.forEach((item) => {
+      if (!existingIds.has(item.id)) {
+        mergedItems.push(item);
+      }
+    });
+
+    state.galleryItems = mergedItems;
+    state.galleryOffset = page.nextOffset;
+    state.galleryHasMore = page.hasMore;
+
+    renderGalleryItems();
+  } catch (error) {
+    console.error(error);
+    removeLoadMoreSkeletons();
+  } finally {
+    state.galleryLoadingMore = false;
+    renderGalleryActions();
+  }
+}
+
+export function bindGalleryActions() {
+  elements.galleryLoadMoreButton?.addEventListener('click', () => {
+    loadMoreGallery();
+  });
+
+  initGalleryLoadMoreObserver();
+}
+
+export function destroyGalleryActions() {
+  disconnectGalleryLoadMoreObserver();
 }
 
 export function scrollToGallery() {
