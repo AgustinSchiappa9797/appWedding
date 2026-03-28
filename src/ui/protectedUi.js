@@ -3,31 +3,39 @@ import { state, subscribeState } from '../state/appState.js';
 
 const PROTECTED_UI_KEYS = new Set(['sessionReady', 'submitting', 'signingIn']);
 
+function setAriaBusy(isBusy) {
+  if (!elements.guestForm) return;
+  elements.guestForm.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+}
+
+function getSubmitButtonLabel() {
+  if (state.submitting) {
+    return 'Guardando recuerdo...';
+  }
+
+  if (state.signingIn) {
+    return 'Verificando acceso...';
+  }
+
+  if (!state.sessionReady) {
+    return 'Completá la verificación';
+  }
+
+  return 'Guardar recuerdo';
+}
+
 export function updateProtectedUiState() {
   const uploadDisabled = !state.sessionReady || state.submitting || state.signingIn;
   const textInputsDisabled = state.submitting || state.signingIn;
+  const isBusy = state.submitting || state.signingIn;
 
   elements.memoryImageInput.disabled = uploadDisabled;
   elements.submitButton.disabled = uploadDisabled;
   elements.guestNameInput.disabled = textInputsDisabled;
   elements.memoryTextInput.disabled = textInputsDisabled;
 
-  if (state.submitting) {
-    elements.submitButton.textContent = 'Guardando...';
-    return;
-  }
-
-  if (state.signingIn) {
-    elements.submitButton.textContent = 'Verificando...';
-    return;
-  }
-
-  if (!state.sessionReady) {
-    elements.submitButton.textContent = 'Completá la verificación';
-    return;
-  }
-
-  elements.submitButton.textContent = 'Guardar recuerdo';
+  elements.submitButton.textContent = getSubmitButtonLabel();
+  setAriaBusy(isBusy);
 }
 
 export function mountProtectedUiState() {

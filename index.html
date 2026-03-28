@@ -10,37 +10,93 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://challenges.cloudflare.com" />
 
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
+    rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 
 <body>
+  <div class="page-glow page-glow-top" aria-hidden="true"></div>
+  <div class="page-glow page-glow-bottom" aria-hidden="true"></div>
+  <div class="page-texture" aria-hidden="true"></div>
+
   <div class="app-shell">
-    <header class="hero card">
+    <header class="hero card reveal-on-scroll is-visible">
       <div class="hero-copy">
         <span class="eyebrow">Nuestra boda</span>
         <h1>Dejá tu foto, tu recuerdo o un mensaje para nosotros</h1>
         <p>
           Escaneaste el QR del casamiento. Entrá con tu nombre, subí una foto y ayudanos a
-          construir este álbum compartido.
+          construir este álbum compartido con recuerdos de esta noche.
         </p>
+
+        <div class="hero-highlights">
+          <span class="hero-chip">🌿 Casa quinta</span>
+          <span class="hero-chip">📷 Fotos y mensajes</span>
+          <span class="hero-chip">🤎 Recuerdos compartidos</span>
+        </div>
+
+        <div class="hero-note">
+          <span class="hero-note-line"></span>
+          <p>
+            La idea es guardar la noche como se vivió: espontánea, cálida y llena de momentos lindos.
+          </p>
+        </div>
       </div>
 
-      <div class="hero-side">
-        <div class="bubble bubble-1"></div>
-        <div class="bubble bubble-2"></div>
-        <div class="bubble bubble-3"></div>
-        <div class="dot-grid" aria-hidden="true"></div>
+      <div class="hero-side" aria-hidden="true">
+        <div class="hero-polaroid polaroid-main">
+          <div class="polaroid-photo photo-garden"></div>
+          <div class="polaroid-caption">Una noche para recordar</div>
+        </div>
+
+        <div class="hero-polaroid polaroid-secondary">
+          <div class="polaroid-photo photo-warm"></div>
+          <div class="polaroid-caption">Fotos, mensajes y recuerdos</div>
+        </div>
+
+        <div class="hero-stamp">Álbum compartido</div>
+        <div class="hero-leaf leaf-1"></div>
+        <div class="hero-leaf leaf-2"></div>
       </div>
     </header>
 
+    <section class="event-band card reveal-on-scroll">
+      <div class="event-band-item">
+        <span class="event-band-label">Lugar</span>
+        <strong>Casa quinta</strong>
+      </div>
+
+      <div class="event-band-separator" aria-hidden="true"></div>
+
+      <div class="event-band-item">
+        <span class="event-band-label">Estilo</span>
+        <strong>Madera, ladrillo y jardín</strong>
+      </div>
+
+      <div class="event-band-separator" aria-hidden="true"></div>
+
+      <div class="event-band-item">
+        <span class="event-band-label">Recuerdo</span>
+        <strong>Fotos y mensajes del evento</strong>
+      </div>
+    </section>
+
     <main class="layout">
-      <section class="card entry-panel">
+      <section class="card entry-panel reveal-on-scroll">
         <div class="section-head">
+          <span class="section-kicker">Paso 1</span>
           <h2>Compartí tu recuerdo</h2>
           <p>Tu nombre será visible para identificar quién compartió cada recuerdo.</p>
+        </div>
+
+        <div class="progress-pills" aria-hidden="true">
+          <span class="progress-pill">Nombre</span>
+          <span class="progress-pill">Mensaje o foto</span>
+          <span class="progress-pill">Verificación</span>
         </div>
 
         <form id="guest-form" class="stack-lg">
@@ -64,9 +120,18 @@
           </div>
 
           <div class="field">
-            <label for="memory-image">Foto</label>
-            <input id="memory-image" name="memory-image" type="file" accept="image/png,image/jpeg,image/webp" />
-            <small>Permitido: JPG, PNG o WEBP de hasta 6 MB.</small>
+            <label for="memory-image">Foto <span class="label-optional">(opcional)</span></label>
+            <div class="upload-shell">
+              <input id="memory-image" name="memory-image" type="file" accept="image/png,image/jpeg,image/webp" />
+              <div class="upload-surface">
+                <div class="upload-icon">📸</div>
+                <div class="upload-copy">
+                  <strong>Elegí una imagen para sumar al álbum</strong>
+                  <span>JPG, PNG o WEBP · hasta 6 MB</span>
+                </div>
+              </div>
+            </div>
+            <small>Podés compartir solo mensaje, solo foto o ambas cosas.</small>
           </div>
 
           <div class="field">
@@ -85,31 +150,37 @@
         <div id="form-message" class="feedback" role="status" aria-live="polite"></div>
       </section>
 
-      <section class="card preview-panel">
+      <section class="card preview-panel reveal-on-scroll">
         <div class="section-head">
+          <span class="section-kicker">Paso 2</span>
           <h2>Vista previa</h2>
           <p>Así se verá tu recuerdo antes de guardarse.</p>
         </div>
 
         <article class="memory-card" id="preview-card">
+          <div class="memory-card-topline"></div>
+
           <div class="memory-meta">
             <span class="memory-author" id="preview-name">Tu nombre</span>
             <span class="memory-date" id="preview-date">Hoy</span>
           </div>
 
           <p class="memory-text" id="preview-text">
-            Todavía no escribiste ningún mensaje.
+            Tu mensaje aparecerá acá cuando empieces a escribir.
           </p>
 
           <div class="memory-image-wrap hidden" id="preview-image-wrap">
             <img id="preview-image" alt="Vista previa de la foto elegida" />
           </div>
+
+          <div class="memory-signature">Con cariño 🤎</div>
         </article>
       </section>
     </main>
 
-    <section class="card gallery-panel">
+    <section class="card gallery-panel reveal-on-scroll">
       <div class="section-head">
+        <span class="section-kicker">Paso 3</span>
         <h2>Galería del evento</h2>
         <p>Los recuerdos compartidos aparecerán acá lo antes posible.</p>
       </div>
@@ -117,7 +188,7 @@
       <div class="gallery-grid" id="gallery-grid">
         <article class="gallery-item">
           <span class="pill">Cargando...</span>
-          <p>Trayendo recuerdos del evento 💛</p>
+          <p>Trayendo recuerdos del evento 🤎</p>
         </article>
       </div>
 
@@ -129,6 +200,47 @@
         <div class="gallery-load-more-sentinel" id="gallery-load-more-sentinel" aria-hidden="true"></div>
       </div>
     </section>
+  </div>
+
+  <div class="lightbox hidden" id="gallery-lightbox" role="dialog" aria-modal="true" aria-hidden="true"
+    aria-label="Vista ampliada del recuerdo">
+    <div class="lightbox-backdrop" id="gallery-lightbox-backdrop"></div>
+
+    <div class="lightbox-shell">
+      <button type="button" class="lightbox-close" id="gallery-lightbox-close" aria-label="Cerrar">
+        ✕
+      </button>
+
+      <button type="button" class="lightbox-nav lightbox-nav-prev" id="gallery-lightbox-prev"
+        aria-label="Foto anterior">
+        ‹
+      </button>
+
+      <div class="lightbox-card" id="gallery-lightbox-card">
+        <div class="lightbox-media-wrap">
+          <div class="lightbox-media-status" id="gallery-lightbox-status" aria-live="polite">
+            Cargando imagen...
+          </div>
+
+          <img id="gallery-lightbox-image" alt="" class="hidden" />
+        </div>
+
+        <div class="lightbox-copy">
+          <div class="lightbox-meta">
+            <span class="lightbox-author" id="gallery-lightbox-author">Invitado</span>
+            <span class="lightbox-date" id="gallery-lightbox-date"></span>
+          </div>
+
+          <p class="lightbox-message hidden" id="gallery-lightbox-message"></p>
+          <p class="lightbox-count" id="gallery-lightbox-count"></p>
+        </div>
+      </div>
+
+      <button type="button" class="lightbox-nav lightbox-nav-next" id="gallery-lightbox-next"
+        aria-label="Foto siguiente">
+        ›
+      </button>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

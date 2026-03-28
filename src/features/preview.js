@@ -2,6 +2,9 @@ import { elements } from '../ui/elements.js';
 import { state } from '../state/appState.js';
 import { formatToday } from '../utils/format.js';
 
+const PREVIEW_EMPTY_NAME = 'Tu nombre';
+const PREVIEW_EMPTY_TEXT = 'Tu mensaje aparecerá acá cuando empieces a escribir.';
+
 function revokePreviewObjectUrl() {
   if (!state.previewObjectUrl) return;
 
@@ -19,11 +22,21 @@ function resetPreviewImageDom() {
   elements.previewImageWrap.classList.add('hidden');
 }
 
+function normalizePreviewName(value) {
+  return String(value || '').trim();
+}
+
+function normalizePreviewText(value) {
+  return String(value || '').trim();
+}
+
 export function updatePreview() {
-  elements.previewName.textContent = elements.guestNameInput.value.trim() || 'Tu nombre';
+  const nextName = normalizePreviewName(elements.guestNameInput.value);
+  const nextText = normalizePreviewText(elements.memoryTextInput.value);
+
+  elements.previewName.textContent = nextName || PREVIEW_EMPTY_NAME;
   elements.previewDate.textContent = formatToday();
-  elements.previewText.textContent =
-    elements.memoryTextInput.value.trim() || 'Todavía no escribiste ningún mensaje.';
+  elements.previewText.textContent = nextText || PREVIEW_EMPTY_TEXT;
 }
 
 export function clearPreviewImage() {

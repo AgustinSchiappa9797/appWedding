@@ -13,9 +13,88 @@ import { clearDraft } from './draft.js';
 
 let submitLock = false;
 
+const DEFAULT_UPLOAD_TITLE = 'Elegí una imagen para sumar al álbum';
+const DEFAULT_UPLOAD_SUBTITLE = `JPG, PNG o WEBP · hasta ${CONFIG.maxImageMb} MB`;
+
 function getSelectedFile() {
   const [file] = elements.memoryImageInput.files || [];
   return file || null;
+}
+
+function getUploadShellElements() {
+  const shell = document.querySelector('.upload-shell');
+  const surface = shell?.querySelector('.upload-surface') || null;
+  const title = shell?.querySelector('.upload-copy strong') || null;
+  const subtitle = shell?.querySelector('.upload-copy span') || null;
+
+  return { shell, surface, title, subtitle };
+}
+
+function formatFileSize(bytes) {
+  const size = Number(bytes) || 0;
+
+  if (size >= 1024 * 1024) {
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  if (size >= 1024) {
+    return `${Math.max(1, Math.round(size / 1024))} KB`;
+  }
+
+  return `${size} B`;
+}
+
+function resetUploadUx() {
+  const { shell, title, subtitle } = getUploadShellElements();
+
+  shell?.classList.remove('is-selected', 'is-error');
+
+  if (title) {
+    title.textContent = DEFAULT_UPLOAD_TITLE;
+  }
+
+  if (subtitle) {
+    subtitle.textContent = DEFAULT_UPLOAD_SUBTITLE;
+  }
+}
+
+function setUploadSelectedUx(file) {
+  const { shell, title, subtitle } = getUploadShellElements();
+
+  shell?.classList.remove('is-error');
+  shell?.classList.add('is-selected');
+
+  if (title) {
+    title.textContent = 'Foto lista para sumarse al recuerdo';
+  }
+
+  if (subtitle) {
+    subtitle.textContent = `${file.name} · ${formatFileSize(file.size)}`;
+  }
+}
+
+function setUploadErrorUx(message) {
+  const { shell, title, subtitle } = getUploadShellElements();
+
+  shell?.classList.remove('is-selected');
+  shell?.classList.add('is-error');
+
+  if (title) {
+    title.textContent = 'No pudimos usar esa imagen';
+  }
+
+  if (subtitle) {
+    subtitle.textContent = message || DEFAULT_UPLOAD_SUBTITLE;
+  }
+}
+
+function clearImageSelection({ resetInput = true } = {}) {
+  if (resetInput) {
+    elements.memoryImageInput.value = '';
+  }
+
+  clearPreviewImage();
+  resetUploadUx();
 }
 
 function applyFieldConstraints() {
@@ -55,6 +134,14 @@ export function syncFormUx() {
   );
 }
 
+function resetFormUx() {
+  elements.guestForm.reset();
+  clearImageSelection();
+  clearDraft();
+  updatePreview();
+  syncFormUx();
+}
+
 function bindPreviewInputs() {
   const handleTextInput = () => {
     updatePreview();
@@ -70,20 +157,22 @@ function bindImageInput() {
     const file = getSelectedFile();
 
     if (!file) {
-      clearPreviewImage();
+      clearImageSelection({ resetInput: false });
       return;
     }
 
     const validation = validateImageFile(file);
+
     if (!validation.ok) {
-      elements.memoryImageInput.value = '';
-      clearPreviewImage();
+      clearImageSelection();
+      setUploadErrorUx(validation.message);
       showMessage(validation.message, 'error');
       return;
     }
 
     setPreviewImage(file);
-    showMessage('Imagen lista para subirse.', 'success');
+    setUploadSelectedUx(file);
+    showMessage('La foto quedó lista para subirse junto con tu recuerdo 🤎', 'success');
   });
 }
 
@@ -106,13 +195,17 @@ function bindSubmit() {
   elements.guestForm.addEventListener('submit', async (event) => {
     event.preventDefault();
 
-    if (!state.sessionReady) return;
+    if (!state.sessionReady) {
+      showMessage('Primero completá la verificación para poder guardar tu recuerdo.', 'error');
+      return;
+    }
 
     const name = elements.guestNameInput.value.trim();
     const message = elements.memoryTextInput.value.trim();
     const file = getSelectedFile();
 
     const validation = validateSubmission({ name, message, file });
+
     if (!validation.ok) {
       showMessage(validation.message, 'error');
       return;
@@ -123,39 +216,44 @@ function bindSubmit() {
     }
 
     try {
-      showMessage('Guardando tu recuerdo...', '');
+      showMessage('Estamos guardando tu recuerdo...', '');
 
       await ensureAnonymousSession();
+
+      showMessage('Validando tu nombre dentro del evento...', '');
       const guest = await ensureGuest(name);
 
       let imagePath = null;
+
       if (file) {
         const fileValidation = validateImageFile(file);
+
         if (!fileValidation.ok) {
+          setUploadErrorUx(fileValidation.message);
           throw new Error(fileValidation.message);
         }
 
+        showMessage('Subiendo la foto al álbum...', '');
         imagePath = await uploadImage(file);
       }
 
+      showMessage('Armando tu recuerdo final...', '');
       await createMemory({
         guestId: guest.id,
         message,
         imagePath,
       });
 
-      elements.guestForm.reset();
-      clearPreviewImage();
-      clearDraft();
-      updatePreview();
-      syncFormUx();
-      showMessage('Gracias por compartir este recuerdo 💛', 'success');
+      resetFormUx();
+      showMessage('¡Listo! Tu recuerdo ya forma parte del álbum 🤎', 'success');
 
       await loadGallery({ silent: false, reset: true });
       scrollToGallery();
     } catch (error) {
       console.error(error);
-      showMessage(error.message || 'Ocurrió un error al guardar el recuerdo.', 'error');
+
+      const nextMessage = error?.message || 'Ocurrió un error al guardar el recuerdo.';
+      showMessage(nextMessage, 'error');
     } finally {
       releaseSubmitLock();
     }
@@ -164,6 +262,7 @@ function bindSubmit() {
 
 export function bindForm() {
   applyFieldConstraints();
+  resetUploadUx();
   bindPreviewInputs();
   bindImageInput();
   bindSubmit();

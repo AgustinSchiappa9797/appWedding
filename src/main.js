@@ -14,6 +14,8 @@ import { bindDraftPersistence, restoreDraft, flushDraftSave } from './features/d
 import { getExistingSession } from './services/authService.js';
 import { mountProtectedUiState } from './ui/protectedUi.js';
 
+let revealObserver = null;
+
 async function bootstrapAccessState() {
   try {
     const session = await getExistingSession();
@@ -23,6 +25,40 @@ async function bootstrapAccessState() {
     console.error(error);
     renderGalleryError();
   }
+}
+
+function initScrollReveal() {
+  const items = Array.from(document.querySelectorAll('.reveal-on-scroll'));
+
+  if (!items.length) return;
+
+  if (!('IntersectionObserver' in window)) {
+    items.forEach((item) => item.classList.add('is-visible'));
+    return;
+  }
+
+  revealObserver?.disconnect();
+
+  revealObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+
+        entry.target.classList.add('is-visible');
+        revealObserver.unobserve(entry.target);
+      });
+    },
+    {
+      root: null,
+      threshold: 0.12,
+      rootMargin: '0px 0px -8% 0px',
+    },
+  );
+
+  items.forEach((item) => {
+    if (item.classList.contains('is-visible')) return;
+    revealObserver.observe(item);
+  });
 }
 
 function bindLifecycleEvents() {
@@ -40,6 +76,7 @@ function bindLifecycleEvents() {
     stopGalleryAutoRefresh();
     destroyGalleryActions();
     clearPreviewImage();
+    revealObserver?.disconnect();
   };
 
   window.addEventListener('beforeunload', cleanup);
@@ -57,6 +94,8 @@ async function bootstrap() {
   restoreDraft();
   updatePreview();
   syncFormUx();
+  initScrollReveal();
+
   await bootstrapAccessState();
   startGalleryAutoRefresh();
 }

@@ -19,4 +19,17 @@ export const elements = {
   galleryLoadMoreStatus: document.getElementById('gallery-load-more-status'),
   galleryLoadMoreSentinel: document.getElementById('gallery-load-more-sentinel'),
   submitButton: guestForm.querySelector('button[type="submit"]'),
+
+  galleryLightbox: document.getElementById('gallery-lightbox'),
+  galleryLightboxCard: document.getElementById('gallery-lightbox-card'),
+  galleryLightboxBackdrop: document.getElementById('gallery-lightbox-backdrop'),
+  galleryLightboxClose: document.getElementById('gallery-lightbox-close'),
+  galleryLightboxPrev: document.getElementById('gallery-lightbox-prev'),
+  galleryLightboxNext: document.getElementById('gallery-lightbox-next'),
+  galleryLightboxImage: document.getElementById('gallery-lightbox-image'),
+  galleryLightboxStatus: document.getElementById('gallery-lightbox-status'),
+  galleryLightboxAuthor: document.getElementById('gallery-lightbox-author'),
+  galleryLightboxDate: document.getElementById('gallery-lightbox-date'),
+  galleryLightboxMessage: document.getElementById('gallery-lightbox-message'),
+  galleryLightboxCount: document.getElementById('gallery-lightbox-count'),
 };
