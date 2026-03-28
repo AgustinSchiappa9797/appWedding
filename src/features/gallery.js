@@ -131,15 +131,7 @@ function renderGalleryItems() {
 
   elements.galleryGrid.querySelectorAll('img').forEach((img) => {
     img.addEventListener('error', () => {
-      const brokenCard = img.closest('.gallery-item');
       img.remove();
-
-      if (brokenCard && !brokenCard.querySelector('.gallery-image-fallback')) {
-        const fallback = document.createElement('p');
-        fallback.className = 'gallery-image-fallback';
-        fallback.textContent = 'No se pudo cargar esta imagen.';
-        brokenCard.appendChild(fallback);
-      }
     }, { once: true });
   });
 
@@ -181,7 +173,7 @@ function disconnectGalleryLoadMoreObserver() {
 function maybeLoadMoreFromObserver(entries) {
   const [entry] = entries || [];
   if (!entry?.isIntersecting) return;
-  loadMoreGallery({ triggeredByObserver: true });
+  loadMoreGallery();
 }
 
 function initGalleryLoadMoreObserver() {

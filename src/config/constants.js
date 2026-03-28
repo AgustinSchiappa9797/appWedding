@@ -1,6 +1,6 @@
 export const CONFIG = {
-  supabaseUrl: 'https://nwqdxnubaltoojvfpkwu.supabase.co',
-  supabaseAnonKey: 'sb_publishable_OMDf1TtpQV_3hf51J7GnZQ_Cn0t6Pl7',
+  supabaseUrl: 'https://iytkpqiwggnjvuwnkarh.supabase.co',
+  supabaseAnonKey: 'sb_publishable_u-ynaEolQNugzNRv2cm-Tw_qfNZxnB_',
   eventSlug: 'CamientoNathiyAgus',
   storageBucket: 'wedding-memories',
   galleryPageSize: 12,
