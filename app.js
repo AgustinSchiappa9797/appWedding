@@ -9,6 +9,7 @@ const previewText = document.getElementById('preview-text');
 const previewImage = document.getElementById('preview-image');
 const previewImageWrap = document.getElementById('preview-image-wrap');
 const galleryGrid = document.getElementById('gallery-grid');
+const submitButton = guestForm.querySelector('button[type="submit"]');
 
 const SUPABASE_URL = 'https://nwqdxnubaltoojvfpkwu.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_OMDf1TtpQV_3hf51J7GnZQ_Cn0t6Pl7';
@@ -25,10 +26,12 @@ const supabaseClient = window.supabase.createClient(
 const state = {
   previewObjectUrl: null,
   submitting: false,
+  signingIn: false,
   galleryLoading: false,
   galleryRefreshTimer: null,
   hasLoadedGalleryOnce: false,
   captchaToken: null,
+  sessionReady: false,
 };
 
 const formatToday = () =>
@@ -91,25 +94,39 @@ const validateImageFile = (file) => {
   return { ok: true };
 };
 
-const setSubmitting = (value) => {
-  state.submitting = value;
-  const submitButton = guestForm.querySelector('button[type="submit"]');
-  const fields = guestForm.querySelectorAll('input, textarea, button');
+const updateProtectedUiState = () => {
+  const uploadDisabled = !state.sessionReady || state.submitting || state.signingIn;
 
-  fields.forEach((field) => {
-    if (field.id !== 'guest-name' || value) {
-      field.disabled = value;
-    }
-  });
+  memoryImageInput.disabled = uploadDisabled;
+  submitButton.disabled = uploadDisabled;
 
-  submitButton.textContent = value ? 'Guardando...' : 'Guardar recuerdo';
+  if (state.submitting) {
+    submitButton.textContent = 'Guardando...';
+    return;
+  }
+
+  if (state.signingIn) {
+    submitButton.textContent = 'Verificando...';
+    return;
+  }
+
+  if (!state.sessionReady) {
+    submitButton.textContent = 'Completá la verificación';
+    return;
+  }
+
+  submitButton.textContent = 'Guardar recuerdo';
 };
 
 const renderGalleryLoading = () => {
   galleryGrid.innerHTML = `
     <article class="gallery-item">
-      <span class="pill">Galería</span>
-      <p>Cargando recuerdos del evento...</p>
+      <span class="pill">Cargando...</span>
+      <p>Trayendo recuerdos del evento 💛</p>
+    </article>
+    <article class="gallery-item">
+      <span class="pill">✨</span>
+      <p>Puede tardar unos segundos si hay muchas fotos.</p>
     </article>
   `;
 };
@@ -132,6 +149,12 @@ const renderGalleryError = () => {
   `;
 };
 
+async function getExistingSession() {
+  const { data, error } = await supabaseClient.auth.getSession();
+  if (error) throw error;
+  return data?.session || null;
+}
+
 function resetTurnstileWidget() {
   state.captchaToken = null;
 
@@ -144,46 +167,45 @@ function resetTurnstileWidget() {
   }
 }
 
-window.onTurnstileSuccess = function onTurnstileSuccess(token) {
-  state.captchaToken = token;
-};
-
-window.onTurnstileError = function onTurnstileError() {
-  state.captchaToken = null;
-  showMessage('No se pudo verificar el CAPTCHA. Probá nuevamente.', 'error');
-};
-
-window.onTurnstileExpired = function onTurnstileExpired() {
-  state.captchaToken = null;
-  showMessage('La verificación expiró. Volvé a completarla.', 'error');
-};
-
-window.onTurnstileTimeout = function onTurnstileTimeout() {
-  state.captchaToken = null;
-  showMessage('La verificación tardó demasiado. Intentá nuevamente.', 'error');
-};
-
 async function ensureAnonymousSession() {
-  const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
-  if (sessionError) throw sessionError;
+  const existingSession = await getExistingSession();
 
-  if (sessionData?.session) return sessionData.session;
+  if (existingSession) {
+    state.sessionReady = true;
+    updateProtectedUiState();
+    return existingSession;
+  }
 
   if (!state.captchaToken) {
     throw new Error('Completá la verificación antes de continuar.');
   }
 
-  const { data, error } = await supabaseClient.auth.signInAnonymously({
-    options: {
-      captchaToken: state.captchaToken,
-    },
-  });
+  if (state.signingIn) {
+    throw new Error('Estamos verificando tu acceso. Intentá de nuevo en un instante.');
+  }
 
-  resetTurnstileWidget();
+  state.signingIn = true;
+  updateProtectedUiState();
 
-  if (error) throw error;
+  try {
+    const { data, error } = await supabaseClient.auth.signInAnonymously({
+      options: {
+        captchaToken: state.captchaToken,
+      },
+    });
 
-  return data.session;
+    resetTurnstileWidget();
+
+    if (error) throw error;
+
+    state.sessionReady = true;
+    updateProtectedUiState();
+
+    return data.session;
+  } finally {
+    state.signingIn = false;
+    updateProtectedUiState();
+  }
 }
 
 async function getCurrentUser() {
@@ -289,19 +311,14 @@ async function createMemory({ guestId, message, imagePath }) {
   return data;
 }
 
-async function createSignedUrl(path) {
+async function getImageUrl(path) {
   if (!path) return null;
 
-  const { data, error } = await supabaseClient.storage
+  const { data } = supabaseClient.storage
     .from(STORAGE_BUCKET)
-    .createSignedUrl(path, 3600);
+    .getPublicUrl(path);
 
-  if (error) {
-    console.error('Error creando signed URL', error);
-    return null;
-  }
-
-  return data?.signedUrl || null;
+  return data?.publicUrl || null;
 }
 
 function escapeHtml(value) {
@@ -334,8 +351,6 @@ async function loadGallery({ silent = false } = {}) {
       renderGalleryLoading();
     }
 
-    await ensureAnonymousSession();
-
     const { data, error } = await supabaseClient
       .from('memories')
       .select(`
@@ -359,23 +374,24 @@ async function loadGallery({ silent = false } = {}) {
       return;
     }
 
-    const items = await Promise.all(
-      data.map(async (item) => {
-        const imageUrl = item.image_path
-          ? await createSignedUrl(item.image_path)
-          : null;
+    galleryGrid.innerHTML = '';
 
-        const guestData = Array.isArray(item.guests) ? item.guests[0] : item.guests;
+    for (const item of data) {
+      const imageUrl = item.image_path
+        ? await getImageUrl(item.image_path)
+        : null;
 
-        return {
-          ...item,
-          author: guestData?.display_name || 'Invitado',
-          imageUrl,
-        };
-      })
-    );
+      const guestData = Array.isArray(item.guests) ? item.guests[0] : item.guests;
 
-    galleryGrid.innerHTML = items.map(buildGalleryItemHtml).join('');
+      const html = buildGalleryItemHtml({
+        ...item,
+        author: guestData?.display_name || 'Invitado',
+        imageUrl,
+      });
+
+      galleryGrid.insertAdjacentHTML('beforeend', html);
+    }
+
     state.hasLoadedGalleryOnce = true;
   } catch (error) {
     console.error(error);
@@ -412,6 +428,56 @@ function stopGalleryAutoRefresh() {
   }
 }
 
+async function bootstrapAccessState() {
+  try {
+    const session = await getExistingSession();
+    state.sessionReady = Boolean(session);
+    updateProtectedUiState();
+    await loadGallery();
+  } catch (error) {
+    console.error(error);
+    renderGalleryError();
+  }
+}
+
+window.onTurnstileSuccess = async function onTurnstileSuccess(token) {
+  state.captchaToken = token;
+
+  try {
+    showMessage('Verificando acceso...', '');
+    await ensureAnonymousSession();
+    showMessage('Verificación completa. Ya podés subir tu recuerdo 💛', 'success');
+  } catch (error) {
+    console.error(error);
+    resetTurnstileWidget();
+    showMessage(error.message || 'No se pudo completar la verificación.', 'error');
+  }
+};
+
+window.onTurnstileError = function onTurnstileError() {
+  state.captchaToken = null;
+  if (!state.sessionReady) {
+    updateProtectedUiState();
+  }
+  showMessage('No se pudo verificar el CAPTCHA. Probá nuevamente.', 'error');
+};
+
+window.onTurnstileExpired = function onTurnstileExpired() {
+  state.captchaToken = null;
+  if (!state.sessionReady) {
+    updateProtectedUiState();
+    showMessage('La verificación expiró. Volvé a completarla.', 'error');
+  }
+};
+
+window.onTurnstileTimeout = function onTurnstileTimeout() {
+  state.captchaToken = null;
+  if (!state.sessionReady) {
+    updateProtectedUiState();
+    showMessage('La verificación tardó demasiado. Intentá nuevamente.', 'error');
+  }
+};
+
 guestNameInput.addEventListener('input', updatePreview);
 memoryTextInput.addEventListener('input', updatePreview);
 
@@ -441,7 +507,7 @@ memoryImageInput.addEventListener('change', () => {
 guestForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
-  if (state.submitting) return;
+  if (state.submitting || !state.sessionReady) return;
 
   const name = guestNameInput.value.trim();
   const message = memoryTextInput.value.trim();
@@ -462,11 +528,6 @@ guestForm.addEventListener('submit', async (event) => {
     return;
   }
 
-  if (!state.captchaToken && !(await supabaseClient.auth.getSession()).data.session) {
-    showMessage('Completá la verificación antes de guardar.', 'error');
-    return;
-  }
-
   const imageValidation = validateImageFile(file);
   if (!imageValidation.ok) {
     showMessage(imageValidation.message, 'error');
@@ -474,7 +535,8 @@ guestForm.addEventListener('submit', async (event) => {
   }
 
   try {
-    setSubmitting(true);
+    state.submitting = true;
+    updateProtectedUiState();
     showMessage('Guardando tu recuerdo...', '');
 
     await ensureAnonymousSession();
@@ -502,15 +564,14 @@ guestForm.addEventListener('submit', async (event) => {
   } catch (error) {
     console.error(error);
 
-    resetTurnstileWidget();
-
     if (error?.message?.includes('duplicate key')) {
       showMessage('Ese nombre ya está en uso para este evento. Elegí otro.', 'error');
     } else {
       showMessage(error.message || 'Ocurrió un error al guardar el recuerdo.', 'error');
     }
   } finally {
-    setSubmitting(false);
+    state.submitting = false;
+    updateProtectedUiState();
   }
 });
 
@@ -526,5 +587,6 @@ window.addEventListener('beforeunload', () => {
 });
 
 updatePreview();
-loadGallery();
+updateProtectedUiState();
+bootstrapAccessState();
 startGalleryAutoRefresh();
