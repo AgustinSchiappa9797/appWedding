@@ -1,6 +1,5 @@
 import { supabaseClient } from './supabaseClient.js';
 import { state } from '../state/appState.js';
-import { updateProtectedUiState } from '../ui/protectedUi.js';
 
 export async function getExistingSession() {
   const { data, error } = await supabaseClient.auth.getSession();
@@ -25,7 +24,6 @@ export async function ensureAnonymousSession() {
 
   if (existingSession) {
     state.sessionReady = true;
-    updateProtectedUiState();
     return existingSession;
   }
 
@@ -38,7 +36,6 @@ export async function ensureAnonymousSession() {
   }
 
   state.signingIn = true;
-  updateProtectedUiState();
 
   try {
     const { data, error } = await supabaseClient.auth.signInAnonymously({
@@ -52,12 +49,10 @@ export async function ensureAnonymousSession() {
     if (error) throw error;
 
     state.sessionReady = true;
-    updateProtectedUiState();
 
     return data.session;
   } finally {
     state.signingIn = false;
-    updateProtectedUiState();
   }
 }
 

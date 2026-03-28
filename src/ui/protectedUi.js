@@ -1,5 +1,7 @@
 import { elements } from './elements.js';
-import { state } from '../state/appState.js';
+import { state, subscribeState } from '../state/appState.js';
+
+const PROTECTED_UI_KEYS = new Set(['sessionReady', 'submitting', 'signingIn']);
 
 export function updateProtectedUiState() {
   const uploadDisabled = !state.sessionReady || state.submitting || state.signingIn;
@@ -23,4 +25,14 @@ export function updateProtectedUiState() {
   }
 
   elements.submitButton.textContent = 'Guardar recuerdo';
+}
+
+export function mountProtectedUiState() {
+  updateProtectedUiState();
+
+  return subscribeState((_currentState, change) => {
+    if (!change || PROTECTED_UI_KEYS.has(change.key)) {
+      updateProtectedUiState();
+    }
+  });
 }

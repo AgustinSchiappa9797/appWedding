@@ -4,13 +4,12 @@ import { loadGallery, renderGalleryError, startGalleryAutoRefresh, stopGalleryAu
 import { bindForm } from './features/form.js';
 import { bindTurnstileCallbacks } from './features/turnstile.js';
 import { getExistingSession } from './services/authService.js';
-import { updateProtectedUiState } from './ui/protectedUi.js';
+import { mountProtectedUiState } from './ui/protectedUi.js';
 
 async function bootstrapAccessState() {
   try {
     const session = await getExistingSession();
     state.sessionReady = Boolean(session);
-    updateProtectedUiState();
     await loadGallery();
   } catch (error) {
     console.error(error);
@@ -25,19 +24,22 @@ function bindLifecycleEvents() {
     }
   });
 
-  window.addEventListener('beforeunload', () => {
+  const cleanup = () => {
     stopGalleryAutoRefresh();
     clearPreviewImage();
-  });
+  };
+
+  window.addEventListener('beforeunload', cleanup);
+  window.addEventListener('pagehide', cleanup);
 }
 
 async function bootstrap() {
+  mountProtectedUiState();
   bindTurnstileCallbacks();
   bindForm();
   bindLifecycleEvents();
 
   updatePreview();
-  updateProtectedUiState();
   await bootstrapAccessState();
   startGalleryAutoRefresh();
 }

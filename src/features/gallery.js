@@ -4,6 +4,7 @@ import { elements } from '../ui/elements.js';
 import { escapeHtml } from '../utils/escapeHtml.js';
 import { formatDate } from '../utils/format.js';
 import { fetchLatestMemories, getImageUrl } from '../services/memoryService.js';
+import { supabaseClient } from '../services/supabaseClient.js';
 
 export function renderGalleryLoading() {
   elements.galleryGrid.innerHTML = `
@@ -45,6 +46,27 @@ function buildGalleryItemHtml(item) {
       ${item.imageUrl ? `<img src="${item.imageUrl}" alt="Recuerdo compartido por ${escapeHtml(item.author)}" loading="lazy" />` : ''}
     </article>
   `;
+}
+
+function clearRealtimeReloadTimer() {
+  if (!state.galleryRealtimeReloadTimer) return;
+
+  window.clearTimeout(state.galleryRealtimeReloadTimer);
+  state.galleryRealtimeReloadTimer = null;
+}
+
+function scheduleRealtimeGalleryReload() {
+  clearRealtimeReloadTimer();
+
+  state.galleryRealtimeReloadTimer = window.setTimeout(() => {
+    state.galleryRealtimeReloadTimer = null;
+    loadGallery({ silent: true });
+  }, CONFIG.galleryRealtimeDebounceMs);
+}
+
+function handleGalleryRealtimeChange(payload) {
+  console.info('Cambio realtime detectado en memories:', payload?.eventType || 'unknown');
+  scheduleRealtimeGalleryReload();
 }
 
 export async function loadGallery({ silent = false } = {}) {
@@ -99,16 +121,50 @@ export function scrollToGallery() {
 export function startGalleryAutoRefresh() {
   stopGalleryAutoRefresh();
 
-  state.galleryRefreshTimer = window.setInterval(() => {
-    if (!document.hidden) {
-      loadGallery({ silent: true });
-    }
-  }, CONFIG.galleryRefreshMs);
+  const channel = supabaseClient
+    .channel(CONFIG.galleryRealtimeChannelName)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'memories',
+        filter: `event_slug=eq.${CONFIG.eventSlug}`,
+      },
+      handleGalleryRealtimeChange,
+    )
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.info('Realtime de galería activo.');
+        return;
+      }
+
+      if (status === 'CHANNEL_ERROR') {
+        console.warn('No se pudo suscribir el realtime de galería.');
+      }
+
+      if (status === 'TIMED_OUT') {
+        console.warn('La suscripción realtime de galería expiró o tardó demasiado.');
+      }
+
+      if (status === 'CLOSED') {
+        console.info('Realtime de galería cerrado.');
+      }
+    });
+
+  state.galleryRealtimeChannel = channel;
 }
 
 export function stopGalleryAutoRefresh() {
-  if (state.galleryRefreshTimer) {
-    window.clearInterval(state.galleryRefreshTimer);
-    state.galleryRefreshTimer = null;
+  clearRealtimeReloadTimer();
+
+  if (!state.galleryRealtimeChannel) return;
+
+  try {
+    supabaseClient.removeChannel(state.galleryRealtimeChannel);
+  } catch (error) {
+    console.warn('No se pudo remover el canal realtime de galería.', error);
+  } finally {
+    state.galleryRealtimeChannel = null;
   }
 }

@@ -1,12 +1,11 @@
 import { elements } from '../ui/elements.js';
 import { state } from '../state/appState.js';
 import { showMessage } from '../ui/messages.js';
-import { updateProtectedUiState } from '../ui/protectedUi.js';
 import { validateImageFile } from '../utils/fileHelpers.js';
 import { validateSubmission } from '../utils/validators.js';
 import { updatePreview, clearPreviewImage, setPreviewImage } from './preview.js';
 import { loadGallery, scrollToGallery } from './gallery.js';
-import { ensureAnonymousSession, getCurrentUser } from '../services/authService.js';
+import { ensureAnonymousSession } from '../services/authService.js';
 import { ensureGuest } from '../services/guestService.js';
 import { uploadImage, createMemory } from '../services/memoryService.js';
 
@@ -60,16 +59,19 @@ function bindSubmit() {
 
     try {
       state.submitting = true;
-      updateProtectedUiState();
       showMessage('Guardando tu recuerdo...', '');
 
       await ensureAnonymousSession();
-      const user = await getCurrentUser();
       const guest = await ensureGuest(name);
 
       let imagePath = null;
       if (file) {
-        imagePath = await uploadImage(file, user.id);
+        const fileValidation = validateImageFile(file);
+        if (!fileValidation.ok) {
+          throw new Error(fileValidation.message);
+        }
+
+        imagePath = await uploadImage(file);
       }
 
       await createMemory({
@@ -95,7 +97,6 @@ function bindSubmit() {
       }
     } finally {
       state.submitting = false;
-      updateProtectedUiState();
     }
   });
 }
