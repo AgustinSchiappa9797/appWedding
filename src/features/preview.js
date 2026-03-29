@@ -18,8 +18,14 @@ function revokePreviewObjectUrl() {
 }
 
 function resetPreviewImageDom() {
-  elements.previewImage.removeAttribute('src');
-  elements.previewImageWrap.classList.add('hidden');
+  if (elements.previewImage) {
+    elements.previewImage.onload = null;
+    elements.previewImage.onerror = null;
+    elements.previewImage.removeAttribute('src');
+    elements.previewImage.alt = 'Vista previa de la foto elegida';
+  }
+
+  elements.previewImageWrap?.classList.add('hidden');
 }
 
 function normalizePreviewName(value) {
@@ -31,12 +37,20 @@ function normalizePreviewText(value) {
 }
 
 export function updatePreview() {
-  const nextName = normalizePreviewName(elements.guestNameInput.value);
-  const nextText = normalizePreviewText(elements.memoryTextInput.value);
+  const nextName = normalizePreviewName(elements.guestNameInput?.value);
+  const nextText = normalizePreviewText(elements.memoryTextInput?.value);
 
-  elements.previewName.textContent = nextName || PREVIEW_EMPTY_NAME;
-  elements.previewDate.textContent = formatToday();
-  elements.previewText.textContent = nextText || PREVIEW_EMPTY_TEXT;
+  if (elements.previewName) {
+    elements.previewName.textContent = nextName || PREVIEW_EMPTY_NAME;
+  }
+
+  if (elements.previewDate) {
+    elements.previewDate.textContent = formatToday();
+  }
+
+  if (elements.previewText) {
+    elements.previewText.textContent = nextText || PREVIEW_EMPTY_TEXT;
+  }
 }
 
 export function clearPreviewImage() {
@@ -45,17 +59,26 @@ export function clearPreviewImage() {
 }
 
 export function setPreviewImage(file) {
+  if (!file || !elements.previewImage || !elements.previewImageWrap) {
+    clearPreviewImage();
+    return;
+  }
+
   clearPreviewImage();
 
   const nextObjectUrl = URL.createObjectURL(file);
   state.previewObjectUrl = nextObjectUrl;
 
   elements.previewImage.onload = () => {
+    if (!elements.previewImage) return;
+
     elements.previewImage.onload = null;
     elements.previewImage.onerror = null;
   };
 
   elements.previewImage.onerror = () => {
+    if (!elements.previewImage) return;
+
     elements.previewImage.onload = null;
     elements.previewImage.onerror = null;
 
@@ -65,5 +88,6 @@ export function setPreviewImage(file) {
   };
 
   elements.previewImage.src = nextObjectUrl;
+  elements.previewImage.alt = `Vista previa de ${file.name || 'la foto elegida'}`;
   elements.previewImageWrap.classList.remove('hidden');
 }

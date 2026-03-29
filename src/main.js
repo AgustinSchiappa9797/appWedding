@@ -1,13 +1,6 @@
 import { state } from './state/appState.js';
 import { updatePreview, clearPreviewImage } from './features/preview.js';
-import {
-  bindGalleryActions,
-  destroyGalleryActions,
-  loadGallery,
-  renderGalleryError,
-  startGalleryAutoRefresh,
-  stopGalleryAutoRefresh,
-} from './features/gallery.js';
+import { bindGalleryActions, destroyGalleryActions, loadGallery, renderGalleryError, startGalleryAutoRefresh, stopGalleryAutoRefresh, } from './features/gallery.js';
 import { bindForm, syncFormUx } from './features/form.js';
 import { bindTurnstileCallbacks } from './features/turnstile.js';
 import { bindDraftPersistence, restoreDraft, flushDraftSave } from './features/draft.js';
@@ -15,15 +8,20 @@ import { getExistingSession } from './services/authService.js';
 import { mountProtectedUiState } from './ui/protectedUi.js';
 
 let revealObserver = null;
+let lifecycleEventsBound = false;
+let bootstrapStarted = false;
+let cleanupRan = false;
 
 async function bootstrapAccessState() {
   try {
     const session = await getExistingSession();
     state.sessionReady = Boolean(session);
     await loadGallery();
+    return true;
   } catch (error) {
     console.error(error);
     renderGalleryError();
+    return false;
   }
 }
 
@@ -45,7 +43,7 @@ function initScrollReveal() {
         if (!entry.isIntersecting) return;
 
         entry.target.classList.add('is-visible');
-        revealObserver.unobserve(entry.target);
+        revealObserver?.unobserve(entry.target);
       });
     },
     {
@@ -61,29 +59,41 @@ function initScrollReveal() {
   });
 }
 
-function bindLifecycleEvents() {
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      flushDraftSave();
-      return;
-    }
+function cleanupApp() {
+  if (cleanupRan) return;
+  cleanupRan = true;
 
-    loadGallery({ silent: true, reset: true });
-  });
+  flushDraftSave();
+  stopGalleryAutoRefresh();
+  destroyGalleryActions();
+  clearPreviewImage();
+  revealObserver?.disconnect();
+  revealObserver = null;
+}
 
-  const cleanup = () => {
+function handleVisibilityChange() {
+  if (document.hidden) {
     flushDraftSave();
-    stopGalleryAutoRefresh();
-    destroyGalleryActions();
-    clearPreviewImage();
-    revealObserver?.disconnect();
-  };
+    return;
+  }
 
-  window.addEventListener('beforeunload', cleanup);
-  window.addEventListener('pagehide', cleanup);
+  loadGallery({ silent: true, reset: true });
+}
+
+function bindLifecycleEvents() {
+  if (lifecycleEventsBound) return;
+  lifecycleEventsBound = true;
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener('beforeunload', cleanupApp);
+  window.addEventListener('pagehide', cleanupApp);
 }
 
 async function bootstrap() {
+  if (bootstrapStarted) return;
+  bootstrapStarted = true;
+  cleanupRan = false;
+
   mountProtectedUiState();
   bindTurnstileCallbacks();
   bindForm();
@@ -96,8 +106,11 @@ async function bootstrap() {
   syncFormUx();
   initScrollReveal();
 
-  await bootstrapAccessState();
-  startGalleryAutoRefresh();
+  const accessReady = await bootstrapAccessState();
+
+  if (accessReady) {
+    startGalleryAutoRefresh();
+  }
 }
 
 bootstrap();

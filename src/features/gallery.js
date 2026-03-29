@@ -11,12 +11,16 @@ let activeLightboxImageIndex = -1;
 let activeLightboxItemId = null;
 let lastLightboxTrigger = null;
 let lightboxEventsBound = false;
+let galleryActionsBound = false;
 
 function getSkeletonMarkup(count = CONFIG.galleryLoadMoreSkeletonCount) {
   return Array.from({ length: count }, () => `
     <article class="gallery-item gallery-item-skeleton" aria-hidden="true">
       <div class="gallery-card-head">
-        <span class="pill skeleton-block skeleton-pill"></span>
+        <div class="gallery-author-pill">
+          <span class="gallery-author-mark skeleton-block"></span>
+          <span class="pill skeleton-block skeleton-pill"></span>
+        </div>
         <small class="skeleton-block skeleton-line skeleton-line-sm"></small>
       </div>
 
@@ -38,6 +42,8 @@ function removeLoadMoreSkeletons() {
 }
 
 function appendLoadMoreSkeletons() {
+  if (!elements.galleryGrid) return;
+
   removeLoadMoreSkeletons();
 
   const wrapper = document.createElement('div');
@@ -45,7 +51,7 @@ function appendLoadMoreSkeletons() {
   wrapper.className = 'gallery-skeleton-group';
   wrapper.innerHTML = getSkeletonMarkup();
 
-  elements.galleryGrid?.appendChild(wrapper);
+  elements.galleryGrid.appendChild(wrapper);
 }
 
 function getGalleryItemsWithImage() {
@@ -68,16 +74,60 @@ function getImageSequenceIndex(item) {
   return getGalleryItemsWithImage().findIndex((entry) => entry.id === item.id);
 }
 
-function getGalleryImageMarkup(item) {
+function getAuthorInitial(author) {
+  const normalized = String(author || 'I').trim();
+  return escapeHtml(normalized.charAt(0).toUpperCase() || 'I');
+}
+
+function getToneClass(index) {
+  const tones = [
+    'gallery-tone-sand',
+    'gallery-tone-sage',
+    'gallery-tone-clay',
+    'gallery-tone-cream',
+  ];
+
+  return tones[index % tones.length];
+}
+
+function getLayoutVariant(item, index) {
+  const hasImage = Boolean(item.imageUrl);
+  const hasMessage = Boolean(String(item.message || '').trim());
+
+  if (!hasImage && hasMessage) {
+    return index % 3 === 0 ? 'quote-wide' : 'quote';
+  }
+
+  if (hasImage && hasMessage && index % 7 === 0) {
+    return 'featured';
+  }
+
+  if (hasImage && index % 4 === 1) {
+    return 'tall';
+  }
+
+  if (hasImage && !hasMessage) {
+    return 'photo';
+  }
+
+  return 'standard';
+}
+
+function getGalleryImageMarkup(item, layoutVariant) {
   if (!item.imageUrl) return '';
 
   const author = getSafeAuthor(item);
   const imageIndex = getImageSequenceIndex(item);
+  const mediaClass = layoutVariant === 'tall'
+    ? 'gallery-media is-tall'
+    : layoutVariant === 'featured'
+      ? 'gallery-media is-featured'
+      : 'gallery-media';
 
   return `
     <button
       type="button"
-      class="gallery-media gallery-media-button"
+      class="${mediaClass} gallery-media-button"
       data-gallery-open-lightbox="true"
       data-gallery-image-index="${imageIndex}"
       aria-label="Ver foto ampliada de ${author}"
@@ -92,7 +142,7 @@ function getGalleryImageMarkup(item) {
   `;
 }
 
-function getGalleryBodyMarkup(item) {
+function getGalleryBodyMarkup(item, layoutVariant) {
   const safeMessage = getSafeMessage(item);
 
   if (!safeMessage) {
@@ -103,27 +153,42 @@ function getGalleryBodyMarkup(item) {
     `;
   }
 
+  if (layoutVariant === 'quote' || layoutVariant === 'quote-wide') {
+    return `
+      <div class="gallery-quote-wrap">
+        <span class="gallery-quote-mark">“</span>
+        <p class="gallery-message gallery-message-quote">${safeMessage}</p>
+      </div>
+    `;
+  }
+
   return `
     <p class="gallery-message">${safeMessage}</p>
   `;
 }
 
-function buildGalleryItemHtml(item) {
+function buildGalleryItemHtml(item, index) {
   const hasImage = Boolean(item.imageUrl);
   const safeAuthor = getSafeAuthor(item);
   const safeDate = getSafeDate(item);
+  const toneClass = getToneClass(index);
+  const layoutVariant = getLayoutVariant(item, index);
+  const authorInitial = getAuthorInitial(item.author);
 
   return `
-    <article class="gallery-item ${hasImage ? 'gallery-item-with-image' : 'gallery-item-text-only'}">
+    <article class="gallery-item gallery-item-${layoutVariant} ${toneClass} ${hasImage ? 'gallery-item-with-image' : 'gallery-item-text-only'}">
       <div class="gallery-card-head">
-        <span class="pill">${safeAuthor}</span>
+        <div class="gallery-author-pill">
+          <span class="gallery-author-mark" aria-hidden="true">${authorInitial}</span>
+          <span class="pill">${safeAuthor}</span>
+        </div>
         <small class="gallery-date">${safeDate}</small>
       </div>
 
-      ${getGalleryImageMarkup(item)}
+      ${getGalleryImageMarkup(item, layoutVariant)}
 
       <div class="gallery-copy">
-        ${getGalleryBodyMarkup(item)}
+        ${getGalleryBodyMarkup(item, layoutVariant)}
       </div>
     </article>
   `;
@@ -166,6 +231,8 @@ async function hydrateGalleryItems(memories) {
 }
 
 function attachGalleryImageFallbacks() {
+  if (!elements.galleryGrid) return;
+
   elements.galleryGrid.querySelectorAll('.gallery-media img').forEach((img) => {
     img.addEventListener(
       'error',
@@ -250,13 +317,23 @@ function renderLightboxItem(index) {
 
   resetLightboxMediaState();
 
-  elements.galleryLightboxAuthor.textContent = item.author || 'Invitado';
-  elements.galleryLightboxDate.textContent = formatDate(item.created_at);
-  elements.galleryLightboxCount.textContent = `${index + 1} de ${itemsWithImage.length}`;
+  if (elements.galleryLightboxAuthor) {
+    elements.galleryLightboxAuthor.textContent = item.author || 'Invitado';
+  }
+
+  if (elements.galleryLightboxDate) {
+    elements.galleryLightboxDate.textContent = formatDate(item.created_at);
+  }
+
+  if (elements.galleryLightboxCount) {
+    elements.galleryLightboxCount.textContent = `${index + 1} de ${itemsWithImage.length}`;
+  }
 
   const safeMessage = String(item.message || '').trim();
-  elements.galleryLightboxMessage.textContent = safeMessage;
-  elements.galleryLightboxMessage.classList.toggle('hidden', !safeMessage);
+  if (elements.galleryLightboxMessage) {
+    elements.galleryLightboxMessage.textContent = safeMessage;
+    elements.galleryLightboxMessage.classList.toggle('hidden', !safeMessage);
+  }
 
   elements.galleryLightboxImage.onload = () => {
     elements.galleryLightboxImage.classList.remove('hidden');
@@ -301,7 +378,7 @@ function closeLightbox({ restoreFocus = true } = {}) {
 
 function openLightbox(index, triggerElement = null) {
   const itemsWithImage = getGalleryItemsWithImage();
-  if (!itemsWithImage.length || !itemsWithImage[index]) return;
+  if (!itemsWithImage.length || !itemsWithImage[index] || !elements.galleryLightbox) return;
 
   lastLightboxTrigger = triggerElement || document.activeElement;
   renderLightboxItem(index);
@@ -363,51 +440,72 @@ function handleLightboxKeydown(event) {
   }
 }
 
+function handleGalleryGridClick(event) {
+  const trigger = event.target.closest('[data-gallery-open-lightbox="true"]');
+  if (!trigger) return;
+
+  const rawIndex = Number(trigger.dataset.galleryImageIndex);
+  if (!Number.isInteger(rawIndex) || rawIndex < 0) return;
+
+  openLightbox(rawIndex, trigger);
+}
+
+function handleLightboxBackdropClick() {
+  closeLightbox();
+}
+
+function handleLightboxPrevClick() {
+  goToAdjacentLightboxItem(-1);
+}
+
+function handleLightboxNextClick() {
+  goToAdjacentLightboxItem(1);
+}
+
 function bindLightboxEvents() {
   if (lightboxEventsBound) return;
   lightboxEventsBound = true;
 
-  elements.galleryGrid?.addEventListener('click', (event) => {
-    const trigger = event.target.closest('[data-gallery-open-lightbox="true"]');
-    if (!trigger) return;
-
-    const rawIndex = Number(trigger.dataset.galleryImageIndex);
-    if (!Number.isInteger(rawIndex) || rawIndex < 0) return;
-
-    openLightbox(rawIndex, trigger);
-  });
-
-  elements.galleryLightboxBackdrop?.addEventListener('click', () => {
-    closeLightbox();
-  });
-
-  elements.galleryLightboxClose?.addEventListener('click', () => {
-    closeLightbox();
-  });
-
-  elements.galleryLightboxPrev?.addEventListener('click', () => {
-    goToAdjacentLightboxItem(-1);
-  });
-
-  elements.galleryLightboxNext?.addEventListener('click', () => {
-    goToAdjacentLightboxItem(1);
-  });
-
+  elements.galleryGrid?.addEventListener('click', handleGalleryGridClick);
+  elements.galleryLightboxBackdrop?.addEventListener('click', handleLightboxBackdropClick);
+  elements.galleryLightboxClose?.addEventListener('click', handleLightboxBackdropClick);
+  elements.galleryLightboxPrev?.addEventListener('click', handleLightboxPrevClick);
+  elements.galleryLightboxNext?.addEventListener('click', handleLightboxNextClick);
   document.addEventListener('keydown', handleLightboxKeydown);
 }
 
+function unbindLightboxEvents() {
+  if (!lightboxEventsBound) return;
+  lightboxEventsBound = false;
+
+  elements.galleryGrid?.removeEventListener('click', handleGalleryGridClick);
+  elements.galleryLightboxBackdrop?.removeEventListener('click', handleLightboxBackdropClick);
+  elements.galleryLightboxClose?.removeEventListener('click', handleLightboxBackdropClick);
+  elements.galleryLightboxPrev?.removeEventListener('click', handleLightboxPrevClick);
+  elements.galleryLightboxNext?.removeEventListener('click', handleLightboxNextClick);
+  document.removeEventListener('keydown', handleLightboxKeydown);
+}
+
 export function renderGalleryLoading() {
+  if (!elements.galleryGrid) return;
+
   elements.galleryGrid.innerHTML = `
-    <article class="gallery-item gallery-item-state">
+    <article class="gallery-item gallery-item-state gallery-item-featured gallery-tone-cream">
       <span class="pill">Cargando...</span>
       <h3>Trayendo recuerdos del evento</h3>
       <p>Estamos buscando las fotos y mensajes compartidos para mostrarlos acá.</p>
     </article>
 
-    <article class="gallery-item gallery-item-state">
+    <article class="gallery-item gallery-item-state gallery-tone-sage">
       <span class="pill">🤎</span>
       <h3>Preparando la galería</h3>
       <p>Si hay muchas fotos, puede tardar unos segundos más en completarse.</p>
+    </article>
+
+    <article class="gallery-item gallery-item-state gallery-tone-clay">
+      <span class="pill">Álbum</span>
+      <h3>Ordenando los recuerdos</h3>
+      <p>La idea es que cada foto y cada mensaje se sientan como parte del mismo álbum.</p>
     </article>
   `;
 
@@ -415,8 +513,10 @@ export function renderGalleryLoading() {
 }
 
 export function renderGalleryEmpty() {
+  if (!elements.galleryGrid) return;
+
   elements.galleryGrid.innerHTML = `
-    <article class="gallery-item gallery-item-state">
+    <article class="gallery-item gallery-item-state gallery-item-featured gallery-tone-cream">
       <span class="pill">Primer recuerdo</span>
       <h3>Todavía no hay recuerdos cargados</h3>
       <p>El primero puede ser el tuyo. Subí una foto, dejá un mensaje o ambas cosas.</p>
@@ -427,8 +527,10 @@ export function renderGalleryEmpty() {
 }
 
 export function renderGalleryError() {
+  if (!elements.galleryGrid) return;
+
   elements.galleryGrid.innerHTML = `
-    <article class="gallery-item gallery-item-state">
+    <article class="gallery-item gallery-item-state gallery-item-featured gallery-tone-clay">
       <span class="pill">Ups</span>
       <h3>No se pudo cargar la galería</h3>
       <p>Probá nuevamente en unos segundos. La app va a volver a intentar refrescarla.</p>
@@ -446,7 +548,12 @@ function renderGalleryItems() {
     return;
   }
 
-  elements.galleryGrid.innerHTML = state.galleryItems.map(buildGalleryItemHtml).join('');
+  if (!elements.galleryGrid) return;
+
+  elements.galleryGrid.innerHTML = state.galleryItems
+    .map((item, index) => buildGalleryItemHtml(item, index))
+    .join('');
+
   attachGalleryImageFallbacks();
   renderGalleryActions();
   syncOpenLightboxAfterGalleryChange();
@@ -465,16 +572,16 @@ function renderGalleryActions() {
     ? 'Cargando más recuerdos...'
     : 'Cargar más recuerdos';
 
-  if (elements.galleryLoadMoreStatus) {
-    if (!hasItems) {
-      elements.galleryLoadMoreStatus.textContent = '';
-    } else if (!state.galleryHasMore) {
-      elements.galleryLoadMoreStatus.textContent = `Ya se cargaron ${state.galleryItems.length} recuerdos.`;
-    } else if (state.galleryLoadingMore) {
-      elements.galleryLoadMoreStatus.textContent = 'Buscando más fotos y mensajes del evento...';
-    } else {
-      elements.galleryLoadMoreStatus.textContent = `${state.galleryItems.length} recuerdos cargados hasta ahora.`;
-    }
+  if (!elements.galleryLoadMoreStatus) return;
+
+  if (!hasItems) {
+    elements.galleryLoadMoreStatus.textContent = '';
+  } else if (!state.galleryHasMore) {
+    elements.galleryLoadMoreStatus.textContent = `Ya se cargaron ${state.galleryItems.length} recuerdos.`;
+  } else if (state.galleryLoadingMore) {
+    elements.galleryLoadMoreStatus.textContent = 'Buscando más fotos y mensajes del evento...';
+  } else {
+    elements.galleryLoadMoreStatus.textContent = `${state.galleryItems.length} recuerdos cargados hasta ahora.`;
   }
 }
 
@@ -592,16 +699,23 @@ export async function loadMoreGallery() {
 }
 
 export function bindGalleryActions() {
-  elements.galleryLoadMoreButton?.addEventListener('click', () => {
-    loadMoreGallery();
-  });
+  if (galleryActionsBound) return;
+  galleryActionsBound = true;
+
+  elements.galleryLoadMoreButton?.addEventListener('click', loadMoreGallery);
 
   initGalleryLoadMoreObserver();
   bindLightboxEvents();
 }
 
 export function destroyGalleryActions() {
+  if (galleryActionsBound) {
+    elements.galleryLoadMoreButton?.removeEventListener('click', loadMoreGallery);
+    galleryActionsBound = false;
+  }
+
   disconnectGalleryLoadMoreObserver();
+  unbindLightboxEvents();
   closeLightbox({ restoreFocus: false });
 }
 
