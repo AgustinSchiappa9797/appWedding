@@ -13,6 +13,18 @@ let adminBound = false;
 let adminUnlocked = false;
 let adminBusy = false;
 
+function resetAdminTurnstileWidget() {
+  state.adminCaptchaToken = null;
+
+  if (!window.turnstile || !elements.adminTurnstileContainer) return;
+
+  try {
+    window.turnstile.reset(elements.adminTurnstileContainer);
+  } catch (error) {
+    console.warn('No se pudo resetear Turnstile admin', error);
+  }
+}
+
 function getGuestData(item) {
   const guestData = Array.isArray(item.guests) ? item.guests[0] : item.guests;
   return guestData || null;
@@ -97,7 +109,9 @@ async function unlockAdmin() {
     await signInAdmin({
       email: elements.adminEmail?.value || '',
       password: elements.adminPassword?.value || '',
+      captchaToken: state.adminCaptchaToken,
     });
+    state.adminCaptchaToken = null;
 
     const canAdmin = await isCurrentUserAdmin();
 
@@ -115,6 +129,7 @@ async function unlockAdmin() {
     setAdminStatus('Modo admin activo. Los cambios impactan en Supabase.', 'is-success');
   } catch (error) {
     console.error(error);
+    resetAdminTurnstileWidget();
     const message = error?.message || 'No se pudo iniciar sesión como admin.';
     setAdminStatus(message, 'is-error');
     showMessage(message, 'error');
@@ -129,6 +144,7 @@ async function logoutAdmin() {
 
   try {
     await signOutAdmin();
+    resetAdminTurnstileWidget();
     adminUnlocked = false;
     elements.adminTools?.classList.add('hidden');
     elements.adminLogin?.classList.remove('hidden');

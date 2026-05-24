@@ -219,6 +219,14 @@
             <input id="admin-password" type="password" autocomplete="current-password" placeholder="Contraseña de Supabase Auth" />
             <small>El permiso real lo decide Supabase con RLS; la app ya no guarda una clave admin visible.</small>
           </div>
+
+          <div class="field">
+            <label>Verificación admin</label>
+            <div id="admin-turnstile-container" class="cf-turnstile" data-sitekey="0x4AAAAAACxPfDG6_foE04af"
+              data-callback="onAdminTurnstileSuccess" data-error-callback="onAdminTurnstileError"
+              data-expired-callback="onAdminTurnstileExpired" data-timeout-callback="onAdminTurnstileTimeout"></div>
+            <small>Supabase exige este token también para iniciar sesión como admin.</small>
+          </div>
           <div class="inline-actions">
             <button type="button" class="btn btn-primary" id="admin-unlock">Entrar</button>
           </div>

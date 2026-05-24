@@ -1,15 +1,22 @@
 import { supabaseClient } from './supabaseClient.js';
 
-export async function signInAdmin({ email, password }) {
+export async function signInAdmin({ email, password, captchaToken }) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
 
   if (!normalizedEmail || !password) {
     throw new Error('Ingresá email y contraseña admin.');
   }
 
+  if (!captchaToken) {
+    throw new Error('Completá la verificación admin antes de entrar.');
+  }
+
   const { data, error } = await supabaseClient.auth.signInWithPassword({
     email: normalizedEmail,
     password,
+    options: {
+      captchaToken,
+    },
   });
 
   if (error) {

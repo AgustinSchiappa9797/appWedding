@@ -37,4 +37,20 @@ export function bindTurnstileCallbacks() {
       showMessage('La verificación tardó demasiado. Intentá nuevamente.', 'error');
     }
   };
+  window.onAdminTurnstileSuccess = function onAdminTurnstileSuccess(token) {
+    state.adminCaptchaToken = token;
+  };
+
+  window.onAdminTurnstileError = function onAdminTurnstileError() {
+    state.adminCaptchaToken = null;
+  };
+
+  window.onAdminTurnstileExpired = function onAdminTurnstileExpired() {
+    state.adminCaptchaToken = null;
+  };
+
+  window.onAdminTurnstileTimeout = function onAdminTurnstileTimeout() {
+    state.adminCaptchaToken = null;
+  };
+
 }

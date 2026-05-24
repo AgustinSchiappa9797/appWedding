@@ -56,6 +56,7 @@ export const elements = {
   adminTools: document.getElementById('admin-tools'),
   adminEmail: document.getElementById('admin-email'),
   adminPassword: document.getElementById('admin-password'),
+  adminTurnstileContainer: document.getElementById('admin-turnstile-container'),
   adminUnlock: document.getElementById('admin-unlock'),
   adminRefresh: document.getElementById('admin-refresh'),
   adminLogout: document.getElementById('admin-logout'),

@@ -13,6 +13,7 @@ const initialState = {
   galleryHasMore: true,
   hasLoadedGalleryOnce: false,
   captchaToken: null,
+  adminCaptchaToken: null,
   sessionReady: false,
 };
 
