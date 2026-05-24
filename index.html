@@ -29,7 +29,7 @@
         <span class="eyebrow">Nuestra boda</span>
         <h1>Dejá tu foto, tu recuerdo o un mensaje para nosotros</h1>
         <p>
-          Escaneaste el QR del casamiento. Entrá con tu nombre, subí una foto y ayudanos a
+          Escaneaste el QR del casamiento. Entrá con tu nombre, subí una foto o video y ayudanos a
           construir este álbum compartido con recuerdos de esta noche.
         </p>
 
@@ -95,7 +95,7 @@
 
         <div class="progress-pills" aria-hidden="true">
           <span class="progress-pill">Nombre</span>
-          <span class="progress-pill">Mensaje o foto</span>
+          <span class="progress-pill">Mensaje, foto o video</span>
           <span class="progress-pill">Verificación</span>
         </div>
 
@@ -107,7 +107,7 @@
             </div>
             <input id="guest-name" name="guest-name" type="text" maxlength="32" placeholder="Ej: Agus" required
               autocomplete="name" />
-            <small>Este nombre se valida contra Supabase para evitar duplicados dentro del evento.</small>
+            <small>Podés usar tu nombre aunque otro invitado lo haya escrito igual.</small>
           </div>
 
           <div class="field">
@@ -120,18 +120,18 @@
           </div>
 
           <div class="field">
-            <label for="memory-image">Foto <span class="label-optional">(opcional)</span></label>
+            <label for="memory-image">Foto o video <span class="label-optional">(opcional)</span></label>
             <div class="upload-shell">
-              <input id="memory-image" name="memory-image" type="file" accept="image/png,image/jpeg,image/webp" />
+              <input id="memory-image" name="memory-image" type="file" accept="image/png,image/jpeg,image/webp,image/heic,image/heif,video/mp4,video/webm,video/quicktime,.heic,.heif,.mov" />
               <div class="upload-surface">
                 <div class="upload-icon">📸</div>
                 <div class="upload-copy">
-                  <strong>Elegí una imagen para sumar al álbum</strong>
-                  <span>JPG, PNG o WEBP · hasta 6 MB</span>
+                  <strong>Elegí una foto o video para sumar al álbum</strong>
+                  <span>JPG, PNG, WEBP, HEIC · hasta 6 MB / Videos MP4, WEBM o MOV · hasta 80 MB</span>
                 </div>
               </div>
             </div>
-            <small>Podés compartir solo mensaje, solo foto o ambas cosas.</small>
+            <small>Podés compartir solo mensaje, solo foto/video o ambas cosas.</small>
           </div>
 
           <div class="field">
@@ -171,12 +171,32 @@
 
           <div class="memory-image-wrap hidden" id="preview-image-wrap">
             <img id="preview-image" alt="Vista previa de la foto elegida" />
+            <video id="preview-video" class="hidden" controls playsinline muted></video>
           </div>
 
           <div class="memory-signature">Con cariño 🤎</div>
         </article>
       </section>
     </main>
+
+
+    <section class="card stories-panel reveal-on-scroll">
+      <div class="section-head stories-head">
+        <div>
+          <span class="section-kicker">Nuevo</span>
+          <h2>Historias de la boda</h2>
+          <p>Las fotos y videos más recientes aparecen como historias para revivir la noche en secuencia.</p>
+        </div>
+        <span class="stories-badge">Recientes</span>
+      </div>
+
+      <div class="stories-rail" id="stories-rail" aria-label="Historias de la boda">
+        <article class="story-card story-card-empty">
+          <span class="pill">Próximamente</span>
+          <p>Cuando empiecen a subir fotos o videos, acá vas a ver las historias del evento.</p>
+        </article>
+      </div>
+    </section>
 
     <section class="card gallery-panel reveal-on-scroll">
       <div class="section-head">
@@ -202,6 +222,45 @@
     </section>
   </div>
 
+
+  <div class="stories-viewer hidden" id="stories-viewer" role="dialog" aria-modal="true" aria-hidden="true"
+    aria-label="Historias de la boda">
+    <div class="stories-viewer-backdrop" id="stories-viewer-backdrop"></div>
+
+    <div class="stories-viewer-shell">
+      <div class="stories-viewer-progress" id="stories-viewer-progress" aria-hidden="true"></div>
+
+      <button type="button" class="stories-viewer-close" id="stories-viewer-close" aria-label="Cerrar historias">
+        ✕
+      </button>
+
+      <button type="button" class="stories-viewer-nav stories-viewer-prev" id="stories-viewer-prev" aria-label="Historia anterior">
+        ‹
+      </button>
+
+      <article class="stories-viewer-card">
+        <div class="stories-viewer-media-wrap">
+          <img id="stories-viewer-image" alt="Historia de la boda" />
+          <video id="stories-viewer-video" class="hidden" controls playsinline></video>
+        </div>
+
+        <div class="stories-viewer-meta">
+          <div>
+            <strong class="stories-viewer-author" id="stories-viewer-author">Invitado</strong>
+            <span class="stories-viewer-date" id="stories-viewer-date"></span>
+          </div>
+          <span class="stories-viewer-count" id="stories-viewer-count"></span>
+        </div>
+
+        <p class="stories-viewer-message hidden" id="stories-viewer-message"></p>
+      </article>
+
+      <button type="button" class="stories-viewer-nav stories-viewer-next" id="stories-viewer-next" aria-label="Historia siguiente">
+        ›
+      </button>
+    </div>
+  </div>
+
   <div class="lightbox hidden" id="gallery-lightbox" role="dialog" aria-modal="true" aria-hidden="true"
     aria-label="Vista ampliada del recuerdo">
     <div class="lightbox-backdrop" id="gallery-lightbox-backdrop"></div>
@@ -219,10 +278,11 @@
       <div class="lightbox-card" id="gallery-lightbox-card">
         <div class="lightbox-media-wrap">
           <div class="lightbox-media-status" id="gallery-lightbox-status" aria-live="polite">
-            Cargando imagen...
+            Cargando recuerdo...
           </div>
 
           <img id="gallery-lightbox-image" alt="" class="hidden" />
+          <video id="gallery-lightbox-video" class="hidden" controls playsinline></video>
         </div>
 
         <div class="lightbox-copy">

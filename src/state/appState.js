@@ -1,5 +1,7 @@
 const initialState = {
   previewObjectUrl: null,
+  processedImageFile: null,
+  selectedImageMeta: null,
   submitting: false,
   signingIn: false,
   galleryLoading: false,

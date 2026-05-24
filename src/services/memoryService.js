@@ -7,15 +7,15 @@ function mapStorageUploadError(error) {
   const message = String(error?.message || '').toLowerCase();
 
   if (message.includes('row-level security') || message.includes('permission')) {
-    return 'No tenés permisos para subir imágenes. Revisá las policies de Storage.';
+    return 'No tenés permisos para subir archivos. Revisá las policies de Storage.';
   }
 
   if (message.includes('bucket')) {
-    return 'No se encontró el bucket de imágenes configurado en Supabase.';
+    return 'No se encontró el bucket de archivos configurado en Supabase.';
   }
 
   if (message.includes('duplicate')) {
-    return 'La imagen no pudo subirse porque ya existe un archivo con ese nombre.';
+    return 'El archivo no pudo subirse porque ya existe otro con ese nombre.';
   }
 
   if (message.includes('jwt') || message.includes('auth') || message.includes('session')) {
@@ -23,17 +23,17 @@ function mapStorageUploadError(error) {
   }
 
   if (message.includes('network') || message.includes('fetch')) {
-    return 'Hubo un problema de conexión al subir la imagen. Probá nuevamente.';
+    return 'Hubo un problema de conexión al subir el archivo. Probá nuevamente.';
   }
 
-  return error?.message || 'No se pudo subir la imagen.';
+  return error?.message || 'No se pudo subir el archivo.';
 }
 
 function mapMemoryInsertError(error) {
   const message = String(error?.message || '').toLowerCase();
 
   if (message.includes('duplicate key')) {
-    return 'Ese nombre ya está en uso para este evento. Elegí otro.';
+    return 'No se pudo guardar por una restricción de duplicados en la base.';
   }
 
   if (message.includes('check constraint') || message.includes('violates check constraint')) {
@@ -115,7 +115,7 @@ export async function getImageUrl(path) {
     const publicUrl = data?.publicUrl || null;
 
     if (!publicUrl) {
-      console.warn('No se pudo resolver publicUrl para la imagen:', {
+      console.warn('No se pudo resolver publicUrl para el archivo:', {
         bucket: CONFIG.storageBucket,
         path: normalizedPath,
       });
@@ -124,7 +124,7 @@ export async function getImageUrl(path) {
 
     return publicUrl;
   } catch (error) {
-    console.warn('Error resolviendo URL pública de imagen:', error, {
+    console.warn('Error resolviendo URL pública de archivo:', error, {
       bucket: CONFIG.storageBucket,
       path,
     });

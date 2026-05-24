@@ -2,6 +2,29 @@ import { CONFIG } from '../config/constants.js';
 import { supabaseClient } from './supabaseClient.js';
 import { ensureAnonymousSession, getCurrentUser } from './authService.js';
 
+const INVISIBLE_NAME_CHARS = ['\u2060', '\u2061', '\u2062', '\u2063'];
+
+function hasDuplicateNameError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  const code = String(error?.code || '').toLowerCase();
+  return code === '23505' || message.includes('duplicate key') || message.includes('unique');
+}
+
+function buildInvisibleSuffix() {
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  return Array.from(bytes, (byte) => INVISIBLE_NAME_CHARS[byte % INVISIBLE_NAME_CHARS.length]).join('');
+}
+
+function withInvisibleUniqueSuffix(displayName) {
+  const suffix = buildInvisibleSuffix();
+  const maxBaseLength = Math.max(CONFIG.minNameLength, CONFIG.maxNameLength - suffix.length);
+  return `${String(displayName || '').trim().slice(0, maxBaseLength)}${suffix}`;
+}
+
+export function getPublicDisplayName(displayName) {
+  return String(displayName || '').replace(/[\u200B-\u200D\u2060-\u2063\uFEFF]/g, '').trim();
+}
+
 export async function findGuestByAuthUserId(authUserId) {
   const { data, error } = await supabaseClient
     .from('guests')
@@ -14,26 +37,16 @@ export async function findGuestByAuthUserId(authUserId) {
   return data;
 }
 
-export async function isNameTaken(displayName) {
-  const { data, error } = await supabaseClient
-    .from('guests')
-    .select('id')
-    .eq('event_slug', CONFIG.eventSlug)
-    .ilike('display_name', displayName)
-    .limit(1);
-
-  if (error) throw error;
-  return Array.isArray(data) && data.length > 0;
-}
-
 export async function createGuest(displayName, authUserId) {
+  const payload = {
+    auth_user_id: authUserId,
+    event_slug: CONFIG.eventSlug,
+    display_name: displayName,
+  };
+
   const { data, error } = await supabaseClient
     .from('guests')
-    .insert({
-      auth_user_id: authUserId,
-      event_slug: CONFIG.eventSlug,
-      display_name: displayName,
-    })
+    .insert(payload)
     .select('id, auth_user_id, display_name, event_slug')
     .single();
 
@@ -48,10 +61,15 @@ export async function ensureGuest(displayName) {
   const existingGuest = await findGuestByAuthUserId(user.id);
   if (existingGuest) return existingGuest;
 
-  const taken = await isNameTaken(displayName);
-  if (taken) {
-    throw new Error('Ese nombre ya está en uso para este evento. Elegí otro.');
-  }
+  try {
+    return await createGuest(displayName, user.id);
+  } catch (error) {
+    if (!hasDuplicateNameError(error)) {
+      throw error;
+    }
 
-  return createGuest(displayName, user.id);
+    // Si la base tiene una constraint única por nombre, reintentamos con un sufijo invisible.
+    // En UI se limpia para que invitados con el mismo nombre se vean igual.
+    return createGuest(withInvisibleUniqueSuffix(displayName), user.id);
+  }
 }

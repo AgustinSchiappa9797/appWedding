@@ -4,6 +4,8 @@ import { elements } from '../ui/elements.js';
 import { escapeHtml } from '../utils/escapeHtml.js';
 import { formatDate } from '../utils/format.js';
 import { fetchMemoriesPage, getImageUrl } from '../services/memoryService.js';
+import { getPublicDisplayName } from '../services/guestService.js';
+import { getMediaKind } from '../utils/fileHelpers.js';
 import { supabaseClient } from '../services/supabaseClient.js';
 
 let galleryLoadMoreObserver = null;
@@ -12,6 +14,11 @@ let activeLightboxItemId = null;
 let lastLightboxTrigger = null;
 let lightboxEventsBound = false;
 let galleryActionsBound = false;
+let storiesEventsBound = false;
+let activeStoryIndex = -1;
+let activeStoryTimer = null;
+let activeStoryProgressTimer = null;
+let lastStoryTrigger = null;
 
 function getSkeletonMarkup(count = CONFIG.galleryLoadMoreSkeletonCount) {
   return Array.from({ length: count }, () => `
@@ -58,8 +65,16 @@ function getGalleryItemsWithImage() {
   return state.galleryItems.filter((item) => Boolean(item.imageUrl));
 }
 
+function isVideoItem(item) {
+  return item?.mediaKind === 'video';
+}
+
+function getStoryItems() {
+  return getGalleryItemsWithImage().slice(0, CONFIG.storiesMaxItems);
+}
+
 function getSafeAuthor(item) {
-  return escapeHtml(item.author || 'Invitado');
+  return escapeHtml(getPublicDisplayName(item.author) || 'Invitado');
 }
 
 function getSafeDate(item) {
@@ -118,26 +133,27 @@ function getGalleryImageMarkup(item, layoutVariant) {
 
   const author = getSafeAuthor(item);
   const imageIndex = getImageSequenceIndex(item);
+  const isVideo = isVideoItem(item);
   const mediaClass = layoutVariant === 'tall'
     ? 'gallery-media is-tall'
     : layoutVariant === 'featured'
       ? 'gallery-media is-featured'
       : 'gallery-media';
+  const label = isVideo ? 'video' : 'foto';
+  const mediaMarkup = isVideo
+    ? `<video src="${item.imageUrl}" preload="metadata" muted playsinline></video>`
+    : `<img src="${item.imageUrl}" alt="Recuerdo compartido por ${author}" loading="lazy" />`;
 
   return `
     <button
       type="button"
-      class="${mediaClass} gallery-media-button"
+      class="${mediaClass} gallery-media-button ${isVideo ? 'is-video' : ''}"
       data-gallery-open-lightbox="true"
       data-gallery-image-index="${imageIndex}"
-      aria-label="Ver foto ampliada de ${author}"
+      aria-label="Ver ${label} ampliada de ${author}"
     >
-      <img
-        src="${item.imageUrl}"
-        alt="Recuerdo compartido por ${author}"
-        loading="lazy"
-      />
-      <span class="gallery-media-hint">Ver foto</span>
+      ${mediaMarkup}
+      <span class="gallery-media-hint">Ver ${label}</span>
     </button>
   `;
 }
@@ -148,7 +164,7 @@ function getGalleryBodyMarkup(item, layoutVariant) {
   if (!safeMessage) {
     return `
       <p class="gallery-empty-copy">
-        Compartió una foto para sumar a este álbum del evento.
+        Compartió una foto o video para sumar a este álbum del evento.
       </p>
     `;
   }
@@ -169,6 +185,7 @@ function getGalleryBodyMarkup(item, layoutVariant) {
 
 function buildGalleryItemHtml(item, index) {
   const hasImage = Boolean(item.imageUrl);
+  const hasVideo = isVideoItem(item);
   const safeAuthor = getSafeAuthor(item);
   const safeDate = getSafeDate(item);
   const toneClass = getToneClass(index);
@@ -176,7 +193,7 @@ function buildGalleryItemHtml(item, index) {
   const authorInitial = getAuthorInitial(item.author);
 
   return `
-    <article class="gallery-item gallery-item-${layoutVariant} ${toneClass} ${hasImage ? 'gallery-item-with-image' : 'gallery-item-text-only'}">
+    <article class="gallery-item gallery-item-${layoutVariant} ${toneClass} ${hasImage ? 'gallery-item-with-image' : 'gallery-item-text-only'} ${hasVideo ? 'gallery-item-with-video' : ''}">
       <div class="gallery-card-head">
         <div class="gallery-author-pill">
           <span class="gallery-author-mark" aria-hidden="true">${authorInitial}</span>
@@ -192,6 +209,249 @@ function buildGalleryItemHtml(item, index) {
       </div>
     </article>
   `;
+}
+
+function clearStoryTimers() {
+  if (activeStoryTimer) {
+    window.clearTimeout(activeStoryTimer);
+    activeStoryTimer = null;
+  }
+
+  if (activeStoryProgressTimer) {
+    window.clearInterval(activeStoryProgressTimer);
+    activeStoryProgressTimer = null;
+  }
+}
+
+function renderStoriesEmpty() {
+  if (!elements.storiesRail) return;
+
+  elements.storiesRail.innerHTML = `
+    <article class="story-card story-card-empty">
+      <span class="pill">Próximamente</span>
+      <p>Cuando empiecen a subir fotos o videos, acá vas a ver las historias del evento.</p>
+    </article>
+  `;
+}
+
+function renderStoriesRail() {
+  if (!elements.storiesRail) return;
+
+  const stories = getStoryItems();
+
+  if (!stories.length) {
+    renderStoriesEmpty();
+    return;
+  }
+
+  elements.storiesRail.innerHTML = stories.map((item, index) => {
+    const isVideo = isVideoItem(item);
+    const thumb = isVideo
+      ? `<video src="${item.imageUrl}" preload="metadata" muted playsinline></video>`
+      : `<img src="${item.imageUrl}" alt="Historia compartida por ${getSafeAuthor(item)}" loading="lazy" />`;
+
+    return `
+      <button
+        type="button"
+        class="story-card ${isVideo ? 'is-video' : ''}"
+        data-story-index="${index}"
+        aria-label="Abrir historia de ${getSafeAuthor(item)}"
+      >
+        <span class="story-avatar">
+          <span class="story-ring"></span>
+          ${thumb}
+        </span>
+        <span class="story-name">${getSafeAuthor(item)}</span>
+        <span class="story-time">${getSafeDate(item)}</span>
+      </button>
+    `;
+  }).join('');
+}
+
+function setStoriesViewerProgress(activeIndex, progressRatio = 0) {
+  if (!elements.storiesViewerProgress) return;
+
+  const stories = getStoryItems();
+  elements.storiesViewerProgress.innerHTML = stories.map((_, index) => {
+    const ratio = index < activeIndex ? 1 : index === activeIndex ? progressRatio : 0;
+    return `
+      <span class="stories-progress-segment">
+        <span class="stories-progress-fill" style="transform: scaleX(${Math.max(0, Math.min(1, ratio))});"></span>
+      </span>
+    `;
+  }).join('');
+}
+
+function updateStoriesViewerNavState() {
+  const count = getStoryItems().length;
+  const hasMultiple = count > 1;
+  elements.storiesViewerPrev?.classList.toggle('hidden', !hasMultiple);
+  elements.storiesViewerNext?.classList.toggle('hidden', !hasMultiple);
+}
+
+function scheduleNextStory() {
+  clearStoryTimers();
+
+  const startedAt = Date.now();
+  setStoriesViewerProgress(activeStoryIndex, 0);
+
+  activeStoryProgressTimer = window.setInterval(() => {
+    const elapsed = Date.now() - startedAt;
+    const ratio = elapsed / CONFIG.storyDurationMs;
+    setStoriesViewerProgress(activeStoryIndex, ratio);
+  }, 50);
+
+  activeStoryTimer = window.setTimeout(() => {
+    goToAdjacentStory(1);
+  }, CONFIG.storyDurationMs);
+}
+
+function renderStory(index) {
+  const stories = getStoryItems();
+  const item = stories[index];
+
+  if (!item || !elements.storiesViewerImage) return;
+
+  activeStoryIndex = index;
+  const isVideo = isVideoItem(item);
+
+  if (elements.storiesViewerImage) {
+    elements.storiesViewerImage.classList.toggle('hidden', isVideo);
+    elements.storiesViewerImage.src = isVideo ? '' : item.imageUrl;
+    elements.storiesViewerImage.alt = `Historia compartida por ${getPublicDisplayName(item.author) || 'Invitado'}`;
+  }
+
+  if (elements.storiesViewerVideo) {
+    elements.storiesViewerVideo.pause?.();
+    elements.storiesViewerVideo.classList.toggle('hidden', !isVideo);
+    elements.storiesViewerVideo.src = isVideo ? item.imageUrl : '';
+    elements.storiesViewerVideo.load?.();
+  }
+
+  if (elements.storiesViewerAuthor) {
+    elements.storiesViewerAuthor.textContent = getPublicDisplayName(item.author) || 'Invitado';
+  }
+
+  if (elements.storiesViewerDate) {
+    elements.storiesViewerDate.textContent = formatDate(item.created_at);
+  }
+
+  if (elements.storiesViewerCount) {
+    elements.storiesViewerCount.textContent = `${index + 1} / ${stories.length}`;
+  }
+
+  const safeMessage = String(item.message || '').trim();
+  if (elements.storiesViewerMessage) {
+    elements.storiesViewerMessage.textContent = safeMessage || 'Recuerdo compartido para revivir este momento de la noche.';
+    elements.storiesViewerMessage.classList.toggle('hidden', false);
+  }
+
+  updateStoriesViewerNavState();
+  scheduleNextStory();
+}
+
+function closeStoriesViewer({ restoreFocus = true } = {}) {
+  clearStoryTimers();
+
+  if (!elements.storiesViewer) return;
+
+  elements.storiesViewer.classList.add('hidden');
+  elements.storiesViewer.setAttribute('aria-hidden', 'true');
+  unlockBodyScroll();
+
+  if (restoreFocus && lastStoryTrigger && typeof lastStoryTrigger.focus === 'function') {
+    lastStoryTrigger.focus();
+  }
+
+  lastStoryTrigger = null;
+  activeStoryIndex = -1;
+}
+
+function openStoriesViewer(index, triggerElement = null) {
+  const stories = getStoryItems();
+  if (!stories.length || !stories[index] || !elements.storiesViewer) return;
+
+  lastStoryTrigger = triggerElement || document.activeElement;
+  elements.storiesViewer.classList.remove('hidden');
+  elements.storiesViewer.setAttribute('aria-hidden', 'false');
+  lockBodyScroll();
+  renderStory(index);
+  elements.storiesViewerClose?.focus();
+}
+
+function goToAdjacentStory(direction) {
+  const stories = getStoryItems();
+  if (!stories.length) return;
+
+  const nextIndex = (activeStoryIndex + direction + stories.length) % stories.length;
+  renderStory(nextIndex);
+}
+
+function handleStoriesRailClick(event) {
+  const trigger = event.target.closest('[data-story-index]');
+  if (!trigger) return;
+
+  const rawIndex = Number(trigger.dataset.storyIndex);
+  if (!Number.isInteger(rawIndex) || rawIndex < 0) return;
+
+  openStoriesViewer(rawIndex, trigger);
+}
+
+function handleStoriesKeydown(event) {
+  if (elements.storiesViewer?.classList.contains('hidden')) return;
+
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeStoriesViewer();
+    return;
+  }
+
+  if (event.key === 'ArrowLeft') {
+    event.preventDefault();
+    goToAdjacentStory(-1);
+    return;
+  }
+
+  if (event.key === 'ArrowRight' || event.key === ' ') {
+    event.preventDefault();
+    goToAdjacentStory(1);
+  }
+}
+
+function handleStoriesBackdropClick() {
+  closeStoriesViewer();
+}
+
+function handleStoriesPrevClick() {
+  goToAdjacentStory(-1);
+}
+
+function handleStoriesNextClick() {
+  goToAdjacentStory(1);
+}
+
+function bindStoriesEvents() {
+  if (storiesEventsBound) return;
+  storiesEventsBound = true;
+
+  elements.storiesRail?.addEventListener('click', handleStoriesRailClick);
+  elements.storiesViewerBackdrop?.addEventListener('click', handleStoriesBackdropClick);
+  elements.storiesViewerClose?.addEventListener('click', handleStoriesBackdropClick);
+  elements.storiesViewerPrev?.addEventListener('click', handleStoriesPrevClick);
+  elements.storiesViewerNext?.addEventListener('click', handleStoriesNextClick);
+  document.addEventListener('keydown', handleStoriesKeydown);
+}
+
+function unbindStoriesEvents() {
+  if (!storiesEventsBound) return;
+  storiesEventsBound = false;
+
+  elements.storiesRail?.removeEventListener('click', handleStoriesRailClick);
+  elements.storiesViewerBackdrop?.removeEventListener('click', handleStoriesBackdropClick);
+  elements.storiesViewerClose?.removeEventListener('click', handleStoriesBackdropClick);
+  elements.storiesViewerPrev?.removeEventListener('click', handleStoriesPrevClick);
+  elements.storiesViewerNext?.removeEventListener('click', handleStoriesNextClick);
+  document.removeEventListener('keydown', handleStoriesKeydown);
 }
 
 function clearRealtimeReloadTimer() {
@@ -220,11 +480,13 @@ async function hydrateGalleryItems(memories) {
     memories.map(async (item) => {
       const guestData = Array.isArray(item.guests) ? item.guests[0] : item.guests;
       const imageUrl = item.image_path ? await getImageUrl(item.image_path) : null;
+      const mediaKind = item.image_path ? getMediaKind(item.image_path) : 'unknown';
 
       return {
         ...item,
         author: guestData?.display_name || 'Invitado',
         imageUrl,
+        mediaKind,
       };
     }),
   );
@@ -233,7 +495,7 @@ async function hydrateGalleryItems(memories) {
 function attachGalleryImageFallbacks() {
   if (!elements.galleryGrid) return;
 
-  elements.galleryGrid.querySelectorAll('.gallery-media img').forEach((img) => {
+  elements.galleryGrid.querySelectorAll('.gallery-media img, .gallery-media video').forEach((img) => {
     img.addEventListener(
       'error',
       () => {
@@ -245,7 +507,7 @@ function attachGalleryImageFallbacks() {
 
         media.outerHTML = `
           <div class="gallery-image-fallback">
-            No se pudo mostrar esta imagen, pero el recuerdo sigue guardado.
+            No se pudo mostrar este archivo, pero el recuerdo sigue guardado.
           </div>
         `;
       },
@@ -280,7 +542,16 @@ function resetLightboxMediaState() {
     elements.galleryLightboxImage.onerror = null;
   }
 
-  setLightboxStatus('Cargando imagen...');
+  if (elements.galleryLightboxVideo) {
+    elements.galleryLightboxVideo.pause?.();
+    elements.galleryLightboxVideo.classList.add('hidden');
+    elements.galleryLightboxVideo.removeAttribute('src');
+    elements.galleryLightboxVideo.load?.();
+    elements.galleryLightboxVideo.onloadedmetadata = null;
+    elements.galleryLightboxVideo.onerror = null;
+  }
+
+  setLightboxStatus('Cargando recuerdo...');
 }
 
 function syncOpenLightboxAfterGalleryChange() {
@@ -318,7 +589,7 @@ function renderLightboxItem(index) {
   resetLightboxMediaState();
 
   if (elements.galleryLightboxAuthor) {
-    elements.galleryLightboxAuthor.textContent = item.author || 'Invitado';
+    elements.galleryLightboxAuthor.textContent = getPublicDisplayName(item.author) || 'Invitado';
   }
 
   if (elements.galleryLightboxDate) {
@@ -335,6 +606,22 @@ function renderLightboxItem(index) {
     elements.galleryLightboxMessage.classList.toggle('hidden', !safeMessage);
   }
 
+  if (isVideoItem(item) && elements.galleryLightboxVideo) {
+    elements.galleryLightboxImage?.classList.add('hidden');
+    elements.galleryLightboxVideo.onloadedmetadata = () => {
+      elements.galleryLightboxVideo.classList.remove('hidden');
+      setLightboxStatus('', 'hidden');
+    };
+    elements.galleryLightboxVideo.onerror = () => {
+      elements.galleryLightboxVideo.classList.add('hidden');
+      setLightboxStatus('No se pudo cargar este video.', 'is-error');
+    };
+    elements.galleryLightboxVideo.src = item.imageUrl;
+    elements.galleryLightboxVideo.load?.();
+    updateLightboxNavState();
+    return;
+  }
+
   elements.galleryLightboxImage.onload = () => {
     elements.galleryLightboxImage.classList.remove('hidden');
     setLightboxStatus('', 'hidden');
@@ -346,7 +633,7 @@ function renderLightboxItem(index) {
   };
 
   elements.galleryLightboxImage.src = item.imageUrl;
-  elements.galleryLightboxImage.alt = `Recuerdo compartido por ${item.author || 'Invitado'}`;
+  elements.galleryLightboxImage.alt = `Recuerdo compartido por ${getPublicDisplayName(item.author) || 'Invitado'}`;
 
   updateLightboxNavState();
 }
@@ -493,22 +780,23 @@ export function renderGalleryLoading() {
     <article class="gallery-item gallery-item-state gallery-item-featured gallery-tone-cream">
       <span class="pill">Cargando...</span>
       <h3>Trayendo recuerdos del evento</h3>
-      <p>Estamos buscando las fotos y mensajes compartidos para mostrarlos acá.</p>
+      <p>Estamos buscando las fotos, videos y mensajes compartidos para mostrarlos acá.</p>
     </article>
 
     <article class="gallery-item gallery-item-state gallery-tone-sage">
       <span class="pill">🤎</span>
       <h3>Preparando la galería</h3>
-      <p>Si hay muchas fotos, puede tardar unos segundos más en completarse.</p>
+      <p>Si hay muchas fotos o videos, puede tardar unos segundos más en completarse.</p>
     </article>
 
     <article class="gallery-item gallery-item-state gallery-tone-clay">
       <span class="pill">Álbum</span>
       <h3>Ordenando los recuerdos</h3>
-      <p>La idea es que cada foto y cada mensaje se sientan como parte del mismo álbum.</p>
+      <p>La idea es que cada foto, video y mensaje se sientan como parte del mismo álbum.</p>
     </article>
   `;
 
+  renderStoriesEmpty();
   renderGalleryActions();
 }
 
@@ -519,10 +807,11 @@ export function renderGalleryEmpty() {
     <article class="gallery-item gallery-item-state gallery-item-featured gallery-tone-cream">
       <span class="pill">Primer recuerdo</span>
       <h3>Todavía no hay recuerdos cargados</h3>
-      <p>El primero puede ser el tuyo. Subí una foto, dejá un mensaje o ambas cosas.</p>
+      <p>El primero puede ser el tuyo. Subí una foto o video, dejá un mensaje o ambas cosas.</p>
     </article>
   `;
 
+  renderStoriesEmpty();
   renderGalleryActions();
 }
 
@@ -537,6 +826,7 @@ export function renderGalleryError() {
     </article>
   `;
 
+  renderStoriesEmpty();
   renderGalleryActions();
 }
 
@@ -555,9 +845,11 @@ function renderGalleryItems() {
     .join('');
 
   attachGalleryImageFallbacks();
+  renderStoriesRail();
   renderGalleryActions();
   syncOpenLightboxAfterGalleryChange();
 }
+
 
 function renderGalleryActions() {
   if (!elements.galleryActions || !elements.galleryLoadMoreButton) return;
@@ -579,7 +871,7 @@ function renderGalleryActions() {
   } else if (!state.galleryHasMore) {
     elements.galleryLoadMoreStatus.textContent = `Ya se cargaron ${state.galleryItems.length} recuerdos.`;
   } else if (state.galleryLoadingMore) {
-    elements.galleryLoadMoreStatus.textContent = 'Buscando más fotos y mensajes del evento...';
+    elements.galleryLoadMoreStatus.textContent = 'Buscando más fotos, videos y mensajes del evento...';
   } else {
     elements.galleryLoadMoreStatus.textContent = `${state.galleryItems.length} recuerdos cargados hasta ahora.`;
   }
@@ -706,7 +998,9 @@ export function bindGalleryActions() {
 
   initGalleryLoadMoreObserver();
   bindLightboxEvents();
+  bindStoriesEvents();
 }
+
 
 export function destroyGalleryActions() {
   if (galleryActionsBound) {
@@ -716,8 +1010,11 @@ export function destroyGalleryActions() {
 
   disconnectGalleryLoadMoreObserver();
   unbindLightboxEvents();
+  unbindStoriesEvents();
   closeLightbox({ restoreFocus: false });
+  closeStoriesViewer({ restoreFocus: false });
 }
+
 
 export function scrollToGallery() {
   elements.galleryGrid?.scrollIntoView({

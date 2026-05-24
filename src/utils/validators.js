@@ -1,5 +1,5 @@
 import { CONFIG } from '../config/constants.js';
-import { validateImageFile } from './fileHelpers.js';
+import { validateMediaFile } from './fileHelpers.js';
 
 export function validateSubmission({ name, message, file }) {
   const normalizedName = String(name || '').trim();
@@ -29,9 +29,9 @@ export function validateSubmission({ name, message, file }) {
   if (!normalizedMessage && !file) {
     return {
       ok: false,
-      message: 'Escribí un mensaje o subí una foto antes de guardar.',
+      message: 'Escribí un mensaje o subí una foto/video antes de guardar.',
     };
   }
 
-  return validateImageFile(file);
+  return validateMediaFile(file);
 }

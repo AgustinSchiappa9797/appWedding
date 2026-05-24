@@ -2,8 +2,9 @@ import { CONFIG } from '../config/constants.js';
 import { elements } from '../ui/elements.js';
 import { state } from '../state/appState.js';
 import { showMessage } from '../ui/messages.js';
-import { validateImageFile } from '../utils/fileHelpers.js';
+import { getMediaKind, isCompressibleImage, validateMediaFile } from '../utils/fileHelpers.js';
 import { validateSubmission } from '../utils/validators.js';
+import { compressImageForUpload, formatBytes } from '../utils/imageCompression.js';
 import { updatePreview, clearPreviewImage, setPreviewImage } from './preview.js';
 import { loadGallery, scrollToGallery } from './gallery.js';
 import { ensureAnonymousSession } from '../services/authService.js';
@@ -14,12 +15,16 @@ import { clearDraft } from './draft.js';
 let submitLock = false;
 let formBound = false;
 
-const DEFAULT_UPLOAD_TITLE = 'Elegí una imagen para sumar al álbum';
-const DEFAULT_UPLOAD_SUBTITLE = `JPG, PNG o WEBP · hasta ${CONFIG.maxImageMb} MB`;
+const DEFAULT_UPLOAD_TITLE = 'Elegí una foto o video para sumar al álbum';
+const DEFAULT_UPLOAD_SUBTITLE = `JPG, PNG, WEBP, HEIC · hasta ${CONFIG.maxImageMb} MB / Videos MP4, WEBM, MOV · hasta ${CONFIG.maxVideoMb} MB`;
 
 let uploadShellCache = null;
 
 function getSelectedFile() {
+  return state.processedImageFile || null;
+}
+
+function getRawSelectedFile() {
   const [file] = elements.memoryImageInput?.files || [];
   return file || null;
 }
@@ -38,24 +43,10 @@ function getUploadShellElements() {
   return uploadShellCache;
 }
 
-function formatFileSize(bytes) {
-  const size = Number(bytes) || 0;
-
-  if (size >= 1024 * 1024) {
-    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-  }
-
-  if (size >= 1024) {
-    return `${Math.max(1, Math.round(size / 1024))} KB`;
-  }
-
-  return `${size} B`;
-}
-
 function resetUploadUx() {
   const { shell, title, subtitle } = getUploadShellElements();
 
-  shell?.classList.remove('is-selected', 'is-error');
+  shell?.classList.remove('is-selected', 'is-error', 'is-processing');
 
   if (title) {
     title.textContent = DEFAULT_UPLOAD_TITLE;
@@ -66,29 +57,48 @@ function resetUploadUx() {
   }
 }
 
-function setUploadSelectedUx(file) {
+function setUploadProcessingUx() {
   const { shell, title, subtitle } = getUploadShellElements();
 
-  shell?.classList.remove('is-error');
-  shell?.classList.add('is-selected');
+  shell?.classList.remove('is-error', 'is-selected');
+  shell?.classList.add('is-processing');
 
   if (title) {
-    title.textContent = 'Foto lista para sumarse al recuerdo';
+    title.textContent = 'Preparando el archivo para subirlo';
   }
 
   if (subtitle) {
-    subtitle.textContent = `${file.name} · ${formatFileSize(file.size)}`;
+    subtitle.textContent = 'Validando formato y tamaño antes de guardar el recuerdo';
+  }
+}
+
+function setUploadSelectedUx(file, meta = null) {
+  const { shell, title, subtitle } = getUploadShellElements();
+
+  shell?.classList.remove('is-error', 'is-processing');
+  shell?.classList.add('is-selected');
+
+  if (title) {
+    title.textContent = getMediaKind(file) === 'video' ? 'Video listo para sumarse al recuerdo' : 'Foto lista para sumarse al recuerdo';
+  }
+
+  if (subtitle) {
+    if (meta?.compressed && meta.originalSize && meta.finalSize) {
+      subtitle.textContent = `${file.name} · ${formatBytes(meta.originalSize)} → ${formatBytes(meta.finalSize)} · -${meta.savingsPercent || 0}%`;
+    } else {
+      subtitle.textContent = `${file.name} · ${formatBytes(file.size)}`;
+    }
   }
 }
 
 function setUploadErrorUx(message) {
   const { shell, title, subtitle } = getUploadShellElements();
 
-  shell?.classList.remove('is-selected');
+  shell?.classList.remove('is-selected', 'is-processing');
   shell?.classList.add('is-error');
 
   if (title) {
-    title.textContent = 'No pudimos usar esa imagen';
+    title.textContent = 'No pudimos usar ese archivo';
   }
 
   if (subtitle) {
@@ -101,6 +111,8 @@ function clearImageSelection({ resetInput = true } = {}) {
     elements.memoryImageInput.value = '';
   }
 
+  state.processedImageFile = null;
+  state.selectedImageMeta = null;
   clearPreviewImage();
   resetUploadUx();
 }
@@ -165,15 +177,15 @@ function bindPreviewInputs() {
   elements.memoryTextInput?.addEventListener('input', handleTextInput);
 }
 
-function handleImageInputChange() {
-  const file = getSelectedFile();
+async function handleImageInputChange() {
+  const rawFile = getRawSelectedFile();
 
-  if (!file) {
+  if (!rawFile) {
     clearImageSelection({ resetInput: false });
     return;
   }
 
-  const validation = validateImageFile(file);
+  const validation = validateMediaFile(rawFile);
 
   if (!validation.ok) {
     clearImageSelection();
@@ -182,9 +194,44 @@ function handleImageInputChange() {
     return;
   }
 
-  setPreviewImage(file);
-  setUploadSelectedUx(file);
-  showMessage('La foto quedó lista para subirse junto con tu recuerdo 🤎', 'success');
+  try {
+    setUploadProcessingUx();
+    const canCompress = isCompressibleImage(rawFile);
+
+    if (canCompress) {
+      showMessage('Optimizando la foto para que suba más rápido...', '');
+    } else {
+      showMessage(getMediaKind(rawFile) === 'video' ? 'Video listo para subirse al álbum...' : 'Archivo listo para subirse al álbum...', '');
+    }
+
+    const result = canCompress
+      ? await compressImageForUpload(rawFile)
+      : {
+          file: rawFile,
+          compressed: false,
+          originalSize: rawFile.size,
+          finalSize: rawFile.size,
+          savingsPercent: 0,
+        };
+    const nextFile = result.file || rawFile;
+
+    state.processedImageFile = nextFile;
+    state.selectedImageMeta = result;
+
+    setPreviewImage(nextFile);
+    setUploadSelectedUx(nextFile, result);
+
+    if (result.compressed) {
+      showMessage(`Foto optimizada: ${formatBytes(result.originalSize)} → ${formatBytes(result.finalSize)} 🤎`, 'success');
+    } else {
+      showMessage(getMediaKind(nextFile) === 'video' ? 'El video quedó listo para subirse junto con tu recuerdo 🤎' : 'La foto quedó lista para subirse junto con tu recuerdo 🤎', 'success');
+    }
+  } catch (error) {
+    console.error(error);
+    clearImageSelection();
+    setUploadErrorUx(error?.message || 'No pudimos procesar ese archivo.');
+    showMessage(error?.message || 'No pudimos procesar ese archivo.', 'error');
+  }
 }
 
 function bindImageInput() {
@@ -234,20 +281,20 @@ async function handleSubmit(event) {
 
     await ensureAnonymousSession();
 
-    showMessage('Validando tu nombre dentro del evento...', '');
+    showMessage('Registrando tu nombre para este recuerdo...', '');
     const guest = await ensureGuest(name);
 
     let imagePath = null;
 
     if (file) {
-      const fileValidation = validateImageFile(file);
+      const fileValidation = validateMediaFile(file);
 
       if (!fileValidation.ok) {
         setUploadErrorUx(fileValidation.message);
         throw new Error(fileValidation.message);
       }
 
-      showMessage('Subiendo la foto al álbum...', '');
+      showMessage(getMediaKind(file) === 'video' ? 'Subiendo el video al álbum...' : 'Subiendo la foto al álbum...', '');
       imagePath = await uploadImage(file);
     }
 

@@ -1,6 +1,7 @@
 import { elements } from '../ui/elements.js';
 import { state } from '../state/appState.js';
 import { formatToday } from '../utils/format.js';
+import { getMediaKind } from '../utils/fileHelpers.js';
 
 const PREVIEW_EMPTY_NAME = 'Tu nombre';
 const PREVIEW_EMPTY_TEXT = 'Tu mensaje aparecerá acá cuando empieces a escribir.';
@@ -23,6 +24,14 @@ function resetPreviewImageDom() {
     elements.previewImage.onerror = null;
     elements.previewImage.removeAttribute('src');
     elements.previewImage.alt = 'Vista previa de la foto elegida';
+    elements.previewImage.classList.remove('hidden');
+  }
+
+  if (elements.previewVideo) {
+    elements.previewVideo.pause?.();
+    elements.previewVideo.removeAttribute('src');
+    elements.previewVideo.load?.();
+    elements.previewVideo.classList.add('hidden');
   }
 
   elements.previewImageWrap?.classList.add('hidden');
@@ -59,7 +68,7 @@ export function clearPreviewImage() {
 }
 
 export function setPreviewImage(file) {
-  if (!file || !elements.previewImage || !elements.previewImageWrap) {
+  if (!file || !elements.previewImageWrap) {
     clearPreviewImage();
     return;
   }
@@ -67,7 +76,23 @@ export function setPreviewImage(file) {
   clearPreviewImage();
 
   const nextObjectUrl = URL.createObjectURL(file);
+  const mediaKind = getMediaKind(file);
   state.previewObjectUrl = nextObjectUrl;
+
+  if (mediaKind === 'video' && elements.previewVideo) {
+    elements.previewImage?.classList.add('hidden');
+    elements.previewVideo.src = nextObjectUrl;
+    elements.previewVideo.classList.remove('hidden');
+    elements.previewImageWrap.classList.remove('hidden');
+    return;
+  }
+
+  if (!elements.previewImage) {
+    return;
+  }
+
+  elements.previewVideo?.classList.add('hidden');
+  elements.previewImage.classList.remove('hidden');
 
   elements.previewImage.onload = () => {
     if (!elements.previewImage) return;
@@ -82,9 +107,8 @@ export function setPreviewImage(file) {
     elements.previewImage.onload = null;
     elements.previewImage.onerror = null;
 
-    if (state.previewObjectUrl === nextObjectUrl) {
-      clearPreviewImage();
-    }
+    // HEIC/HEIF se aceptan y se suben, aunque algunos navegadores no puedan previsualizarlos.
+    elements.previewImage.classList.add('hidden');
   };
 
   elements.previewImage.src = nextObjectUrl;
