@@ -6,6 +6,7 @@ import { bindTurnstileCallbacks } from './features/turnstile.js';
 import { bindDraftPersistence, restoreDraft, flushDraftSave } from './features/draft.js';
 import { getExistingSession } from './services/authService.js';
 import { mountProtectedUiState } from './ui/protectedUi.js';
+import { bindAdminPanel } from './features/admin.js';
 
 let revealObserver = null;
 let lifecycleEventsBound = false;
@@ -99,6 +100,7 @@ async function bootstrap() {
   bindForm();
   bindDraftPersistence();
   bindGalleryActions();
+  bindAdminPanel();
   bindLifecycleEvents();
 
   restoreDraft();

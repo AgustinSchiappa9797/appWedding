@@ -1,7 +1,7 @@
 import { CONFIG } from '../config/constants.js';
 import { supabaseClient } from './supabaseClient.js';
 import { ensureAnonymousSession, getCurrentUser } from './authService.js';
-import { resolveFileExtension, validateImageFile } from '../utils/fileHelpers.js';
+import { resolveFileExtension, validateMediaFile } from '../utils/fileHelpers.js';
 
 function mapStorageUploadError(error) {
   const message = String(error?.message || '').toLowerCase();
@@ -50,7 +50,7 @@ function mapMemoryInsertError(error) {
 export async function uploadImage(file) {
   if (!file) return null;
 
-  const fileValidation = validateImageFile(file);
+  const fileValidation = validateMediaFile(file);
   if (!fileValidation.ok) {
     throw new Error(fileValidation.message);
   }
@@ -144,6 +144,7 @@ export async function fetchMemoriesPage({ offset = 0, limit = CONFIG.galleryPage
       image_path,
       created_at,
       guests (
+        id,
         display_name
       )
     `)
@@ -161,4 +162,63 @@ export async function fetchMemoriesPage({ offset = 0, limit = CONFIG.galleryPage
     hasMore,
     nextOffset: from + Math.min(rows.length, limit),
   };
+}
+
+export async function updateMemory({ memoryId, message }) {
+  const normalizedMessage = String(message || '').trim();
+
+  if (!memoryId) {
+    throw new Error('Falta identificar el recuerdo a editar.');
+  }
+
+  if (normalizedMessage.length > CONFIG.maxMessageLength) {
+    throw new Error(`El mensaje no puede superar los ${CONFIG.maxMessageLength} caracteres.`);
+  }
+
+  await ensureAnonymousSession();
+
+  const { data, error } = await supabaseClient
+    .from('memories')
+    .update({ message: normalizedMessage || null })
+    .eq('id', memoryId)
+    .eq('event_slug', CONFIG.eventSlug)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(mapMemoryInsertError(error));
+  }
+
+  return data;
+}
+
+export async function deleteMemory({ memoryId, imagePath = null }) {
+  if (!memoryId) {
+    throw new Error('Falta identificar el recuerdo a borrar.');
+  }
+
+  await ensureAnonymousSession();
+
+  const { error } = await supabaseClient
+    .from('memories')
+    .delete()
+    .eq('id', memoryId)
+    .eq('event_slug', CONFIG.eventSlug);
+
+  if (error) {
+    throw new Error(mapMemoryInsertError(error));
+  }
+
+  if (imagePath) {
+    const normalizedPath = String(imagePath).trim().replace(/^\/+/, '');
+    const { error: storageError } = await supabaseClient.storage
+      .from(CONFIG.storageBucket)
+      .remove([normalizedPath]);
+
+    if (storageError) {
+      console.warn('El recuerdo se borró, pero no se pudo borrar el archivo de Storage:', storageError);
+    }
+  }
+
+  return true;
 }

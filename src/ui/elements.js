@@ -48,4 +48,15 @@ export const elements = {
   galleryLightboxDate: document.getElementById('gallery-lightbox-date'),
   galleryLightboxMessage: document.getElementById('gallery-lightbox-message'),
   galleryLightboxCount: document.getElementById('gallery-lightbox-count'),
+
+  adminPanel: document.getElementById('admin-panel'),
+  adminToggle: document.getElementById('admin-toggle'),
+  adminBody: document.getElementById('admin-body'),
+  adminLogin: document.getElementById('admin-login'),
+  adminTools: document.getElementById('admin-tools'),
+  adminPasscode: document.getElementById('admin-passcode'),
+  adminUnlock: document.getElementById('admin-unlock'),
+  adminRefresh: document.getElementById('admin-refresh'),
+  adminStatus: document.getElementById('admin-status'),
+  adminList: document.getElementById('admin-list'),
 };

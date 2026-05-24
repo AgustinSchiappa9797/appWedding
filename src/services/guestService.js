@@ -73,3 +73,39 @@ export async function ensureGuest(displayName) {
     return createGuest(withInvisibleUniqueSuffix(displayName), user.id);
   }
 }
+
+
+export async function updateGuestDisplayName(guestId, displayName) {
+  const cleanName = String(displayName || '').trim();
+
+  if (!guestId) {
+    throw new Error('Falta identificar el invitado.');
+  }
+
+  if (cleanName.length < CONFIG.minNameLength || cleanName.length > CONFIG.maxNameLength) {
+    throw new Error(`El nombre debe tener entre ${CONFIG.minNameLength} y ${CONFIG.maxNameLength} caracteres.`);
+  }
+
+  async function runUpdate(nextName) {
+    const { data, error } = await supabaseClient
+      .from('guests')
+      .update({ display_name: nextName })
+      .eq('id', guestId)
+      .eq('event_slug', CONFIG.eventSlug)
+      .select('id, auth_user_id, display_name, event_slug')
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  try {
+    return await runUpdate(cleanName);
+  } catch (error) {
+    if (!hasDuplicateNameError(error)) {
+      throw error;
+    }
+
+    return runUpdate(withInvisibleUniqueSuffix(cleanName));
+  }
+}

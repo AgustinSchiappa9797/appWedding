@@ -127,7 +127,7 @@
                 <div class="upload-icon">📸</div>
                 <div class="upload-copy">
                   <strong>Elegí una foto o video para sumar al álbum</strong>
-                  <span>JPG, PNG, WEBP, HEIC · hasta 6 MB / Videos MP4, WEBM o MOV · hasta 80 MB</span>
+                  <span>JPG, PNG, WEBP, HEIC · hasta 6 MB / Videos MP4, WEBM o MOV · hasta 35 MB</span>
                 </div>
               </div>
             </div>
@@ -197,6 +197,39 @@
         </article>
       </div>
     </section>
+
+    <section class="card admin-panel reveal-on-scroll" id="admin-panel">
+      <div class="section-head admin-head">
+        <div>
+          <span class="section-kicker">Admin</span>
+          <h2>Editar recuerdos cargados</h2>
+          <p>Ingresá la clave admin para corregir nombres, mensajes o borrar archivos/registros sin entrar a Supabase.</p>
+        </div>
+        <button type="button" class="btn btn-secondary" id="admin-toggle">Abrir admin</button>
+      </div>
+
+      <div class="admin-body hidden" id="admin-body">
+        <div class="admin-login" id="admin-login">
+          <div class="field">
+            <label for="admin-passcode">Clave admin</label>
+            <input id="admin-passcode" type="password" autocomplete="current-password" placeholder="Ingresá la clave configurada" />
+            <small>Configurala en <code>src/config/constants.js</code>, campo <code>adminPasscode</code>.</small>
+          </div>
+          <div class="inline-actions">
+            <button type="button" class="btn btn-primary" id="admin-unlock">Entrar</button>
+          </div>
+        </div>
+
+        <div class="admin-tools hidden" id="admin-tools">
+          <div class="admin-toolbar">
+            <p id="admin-status" class="admin-status">Modo admin activo. Los cambios impactan en Supabase.</p>
+            <button type="button" class="btn btn-secondary" id="admin-refresh">Actualizar lista</button>
+          </div>
+          <div class="admin-list" id="admin-list" aria-live="polite"></div>
+        </div>
+      </div>
+    </section>
+
 
     <section class="card gallery-panel reveal-on-scroll">
       <div class="section-head">

@@ -17,8 +17,8 @@ export const CONFIG = {
   allowedMediaExtensions: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'mp4', 'webm', 'mov'],
   maxImageMb: 6,
   maxImageBytes: 6 * 1024 * 1024,
-  maxVideoMb: 80,
-  maxVideoBytes: 80 * 1024 * 1024,
+  maxVideoMb: 35,
+  maxVideoBytes: 35 * 1024 * 1024,
   compressionTargetMb: 1.6,
   compressionTargetBytes: Math.round(1.6 * 1024 * 1024),
   compressionMaxDimension: 2200,
@@ -29,4 +29,5 @@ export const CONFIG = {
   maxNameLength: 32,
   minNameLength: 2,
   maxMessageLength: 500,
+  adminPasscode: 'cambiar-esta-clave',
 };
