@@ -7,6 +7,7 @@ import { escapeHtml } from '../utils/escapeHtml.js';
 import { getPublicDisplayName, updateGuestDisplayName } from '../services/guestService.js';
 import { deleteMemory, updateMemory } from '../services/memoryService.js';
 import { loadGallery } from './gallery.js';
+import { isCurrentUserAdmin, signInAdmin, signOutAdmin } from '../services/adminAuthService.js';
 
 let adminBound = false;
 let adminUnlocked = false;
@@ -87,19 +88,57 @@ function renderAdminList() {
 }
 
 async function unlockAdmin() {
-  const passcode = elements.adminPasscode?.value || '';
+  if (adminBusy) return;
 
-  if (passcode !== CONFIG.adminPasscode) {
-    setAdminStatus('Clave incorrecta.', 'is-error');
-    showMessage('Clave admin incorrecta.', 'error');
-    return;
+  adminBusy = true;
+  setAdminStatus('Validando acceso admin...');
+
+  try {
+    await signInAdmin({
+      email: elements.adminEmail?.value || '',
+      password: elements.adminPassword?.value || '',
+    });
+
+    const canAdmin = await isCurrentUserAdmin();
+
+    if (!canAdmin) {
+      await signOutAdmin();
+      throw new Error('Ese usuario existe, pero no está habilitado como admin para esta app.');
+    }
+
+    adminUnlocked = true;
+    if (elements.adminPassword) elements.adminPassword.value = '';
+    elements.adminLogin?.classList.add('hidden');
+    elements.adminTools?.classList.remove('hidden');
+    await loadGallery({ silent: true, reset: true });
+    renderAdminList();
+    setAdminStatus('Modo admin activo. Los cambios impactan en Supabase.', 'is-success');
+  } catch (error) {
+    console.error(error);
+    const message = error?.message || 'No se pudo iniciar sesión como admin.';
+    setAdminStatus(message, 'is-error');
+    showMessage(message, 'error');
+  } finally {
+    adminBusy = false;
   }
+}
 
-  adminUnlocked = true;
-  elements.adminLogin?.classList.add('hidden');
-  elements.adminTools?.classList.remove('hidden');
-  setAdminStatus('Modo admin activo. Los cambios impactan en Supabase.', 'is-success');
-  renderAdminList();
+async function logoutAdmin() {
+  if (adminBusy) return;
+  adminBusy = true;
+
+  try {
+    await signOutAdmin();
+    adminUnlocked = false;
+    elements.adminTools?.classList.add('hidden');
+    elements.adminLogin?.classList.remove('hidden');
+    setAdminStatus('Sesión admin cerrada.', 'is-success');
+  } catch (error) {
+    console.error(error);
+    setAdminStatus(error?.message || 'No se pudo cerrar sesión.', 'is-error');
+  } finally {
+    adminBusy = false;
+  }
 }
 
 async function refreshAdminList() {
@@ -196,12 +235,19 @@ export function bindAdminPanel() {
 
   elements.adminToggle?.addEventListener('click', () => toggleAdminBody());
   elements.adminUnlock?.addEventListener('click', unlockAdmin);
-  elements.adminPasscode?.addEventListener('keydown', (event) => {
+  elements.adminEmail?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      elements.adminPassword?.focus();
+    }
+  });
+  elements.adminPassword?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
       unlockAdmin();
     }
   });
   elements.adminRefresh?.addEventListener('click', refreshAdminList);
+  elements.adminLogout?.addEventListener('click', logoutAdmin);
   elements.adminList?.addEventListener('click', handleAdminListClick);
 }

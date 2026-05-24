@@ -29,5 +29,4 @@ export const CONFIG = {
   maxNameLength: 32,
   minNameLength: 2,
   maxMessageLength: 500,
-  adminPasscode: 'cambiar-esta-clave',
 };

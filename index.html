@@ -203,7 +203,7 @@
         <div>
           <span class="section-kicker">Admin</span>
           <h2>Editar recuerdos cargados</h2>
-          <p>Ingresá la clave admin para corregir nombres, mensajes o borrar archivos/registros sin entrar a Supabase.</p>
+          <p>Ingresá con tu usuario admin de Supabase para corregir nombres, mensajes o borrar archivos/registros.</p>
         </div>
         <button type="button" class="btn btn-secondary" id="admin-toggle">Abrir admin</button>
       </div>
@@ -211,9 +211,13 @@
       <div class="admin-body hidden" id="admin-body">
         <div class="admin-login" id="admin-login">
           <div class="field">
-            <label for="admin-passcode">Clave admin</label>
-            <input id="admin-passcode" type="password" autocomplete="current-password" placeholder="Ingresá la clave configurada" />
-            <small>Configurala en <code>src/config/constants.js</code>, campo <code>adminPasscode</code>.</small>
+            <label for="admin-email">Email admin</label>
+            <input id="admin-email" type="email" autocomplete="username" placeholder="tu-email@ejemplo.com" />
+          </div>
+          <div class="field">
+            <label for="admin-password">Contraseña admin</label>
+            <input id="admin-password" type="password" autocomplete="current-password" placeholder="Contraseña de Supabase Auth" />
+            <small>El permiso real lo decide Supabase con RLS; la app ya no guarda una clave admin visible.</small>
           </div>
           <div class="inline-actions">
             <button type="button" class="btn btn-primary" id="admin-unlock">Entrar</button>
@@ -224,6 +228,7 @@
           <div class="admin-toolbar">
             <p id="admin-status" class="admin-status">Modo admin activo. Los cambios impactan en Supabase.</p>
             <button type="button" class="btn btn-secondary" id="admin-refresh">Actualizar lista</button>
+            <button type="button" class="btn btn-secondary" id="admin-logout">Salir</button>
           </div>
           <div class="admin-list" id="admin-list" aria-live="polite"></div>
         </div>
