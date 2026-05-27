@@ -23,7 +23,7 @@ function resetPreviewImageDom() {
     elements.previewImage.onload = null;
     elements.previewImage.onerror = null;
     elements.previewImage.removeAttribute('src');
-    elements.previewImage.alt = 'Vista previa de la foto elegida';
+    elements.previewImage.alt = 'Preview del recuerdo elegido';
     elements.previewImage.classList.remove('hidden');
   }
 
@@ -112,6 +112,6 @@ export function setPreviewImage(file) {
   };
 
   elements.previewImage.src = nextObjectUrl;
-  elements.previewImage.alt = `Vista previa de ${file.name || 'la foto elegida'}`;
+  elements.previewImage.alt = `Preview de ${file.name || 'el recuerdo elegido'}`;
   elements.previewImageWrap.classList.remove('hidden');
 }

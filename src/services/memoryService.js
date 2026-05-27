@@ -7,7 +7,7 @@ function mapStorageUploadError(error) {
   const message = String(error?.message || '').toLowerCase();
 
   if (message.includes('row-level security') || message.includes('permission')) {
-    return 'No tenés permisos para subir archivos. Revisá las policies de Storage.';
+    return 'No tenés permisos para subir archivos.';
   }
 
   if (message.includes('bucket')) {
@@ -37,14 +37,14 @@ function mapMemoryInsertError(error) {
   }
 
   if (message.includes('check constraint') || message.includes('violates check constraint')) {
-    return 'Los datos del recuerdo no cumplen las validaciones configuradas.';
+    return 'Hay algún dato que no parece correcto. Revisalo y probá otra vez.';
   }
 
   if (message.includes('row-level security') || message.includes('permission')) {
-    return 'No tenés permisos para guardar este recuerdo.';
+    return 'No tenés permisos para publicar este recuerdo.';
   }
 
-  return error?.message || 'No se pudo guardar el recuerdo.';
+  return error?.message || 'No se pudo publicar el recuerdo.';
 }
 
 export async function uploadImage(file) {
@@ -168,7 +168,7 @@ export async function updateMemory({ memoryId, message }) {
   const normalizedMessage = String(message || '').trim();
 
   if (!memoryId) {
-    throw new Error('Falta identificar el recuerdo a editar.');
+    throw new Error('No se pudo identificar el recuerdo a editar.');
   }
 
   if (normalizedMessage.length > CONFIG.maxMessageLength) {
@@ -194,7 +194,7 @@ export async function updateMemory({ memoryId, message }) {
 
 export async function deleteMemory({ memoryId, imagePath = null }) {
   if (!memoryId) {
-    throw new Error('Falta identificar el recuerdo a borrar.');
+    throw new Error('No se pudo identificar el recuerdo a borrar.');
   }
 
   await ensureAnonymousSession();

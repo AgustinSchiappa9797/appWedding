@@ -9,7 +9,7 @@ export function bindTurnstileCallbacks() {
     try {
       showMessage('Verificando acceso...', '');
       await ensureAnonymousSession();
-      showMessage('Verificación completa. Ya podés subir tu recuerdo 💛', 'success');
+      showMessage('Confirmación lista. Ya podés publicar 💛', 'success');
     } catch (error) {
       console.error(error);
       resetTurnstileWidget();

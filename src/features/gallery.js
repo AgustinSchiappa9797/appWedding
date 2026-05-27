@@ -174,7 +174,7 @@ function getGalleryBodyMarkup(item, layoutVariant) {
   if (!safeMessage) {
     return `
       <p class="gallery-empty-copy">
-        Compartió un recuerdo para sumar a este álbum del evento.
+        Compartió un momento para guardar en este álbum.
       </p>
     `;
   }
@@ -243,7 +243,7 @@ function renderStoriesEmpty() {
   elements.storiesRail.innerHTML = `
     <article class="story-card story-card-empty">
       <span class="pill">Próximamente</span>
-      <p>Cuando empiecen a subir fotos o videos, acá vas a ver los momentos recientes del evento.</p>
+      <p>Cuando aparezcan las primeras fotos o videos, los vas a ver acá.</p>
     </article>
   `;
 }
@@ -412,6 +412,16 @@ function handleStoriesRailClick(event) {
   openStoriesViewer(rawIndex, trigger);
 }
 
+function getFocusableStoriesElements() {
+  if (!elements.storiesViewer || elements.storiesViewer.classList.contains('hidden')) return [];
+
+  return Array.from(
+    elements.storiesViewer.querySelectorAll(
+      'button:not([disabled]), video[controls], [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((node) => !node.classList.contains('hidden'));
+}
+
 function handleStoriesKeydown(event) {
   if (elements.storiesViewer?.classList.contains('hidden')) return;
 
@@ -430,6 +440,27 @@ function handleStoriesKeydown(event) {
   if (event.key === 'ArrowRight' || event.key === ' ') {
     event.preventDefault();
     goToAdjacentStory(1);
+    return;
+  }
+
+  if (event.key === 'Tab') {
+    const focusable = getFocusableStoriesElements();
+    if (!focusable.length) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+
+    if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last.focus();
+      return;
+    }
+
+    if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 }
 
@@ -522,7 +553,7 @@ function attachGalleryImageFallbacks() {
 
         media.outerHTML = `
           <div class="gallery-image-fallback">
-            No se pudo mostrar este archivo, pero el recuerdo sigue guardado.
+            No se pudo mostrar este archivo, pero el recuerdo está guardado.
           </div>
         `;
       },
@@ -566,7 +597,7 @@ function resetLightboxMediaState() {
     elements.galleryLightboxVideo.onerror = null;
   }
 
-  setLightboxStatus('Cargando recuerdo...');
+  setLightboxStatus('Abriendo recuerdo...');
 }
 
 function syncOpenLightboxAfterGalleryChange() {
@@ -794,7 +825,7 @@ export function renderGalleryLoading() {
   elements.galleryGrid.innerHTML = `
     <article class="gallery-item gallery-item-state gallery-item-featured gallery-tone-cream">
       <span class="pill">Cargando...</span>
-      <h3>Trayendo recuerdos del evento</h3>
+      <h3>Preparando el álbum</h3>
       <p>Estamos buscando las fotos, videos y mensajes compartidos para mostrarlos acá.</p>
     </article>
 
@@ -806,7 +837,7 @@ export function renderGalleryLoading() {
 
     <article class="gallery-item gallery-item-state gallery-tone-clay">
       <span class="pill">Álbum</span>
-      <h3>Ordenando los recuerdos</h3>
+      <h3>Ordenando los momentos</h3>
       <p>La idea es que cada foto, video y mensaje se sientan como parte del mismo álbum.</p>
     </article>
   `;
@@ -820,9 +851,10 @@ export function renderGalleryEmpty() {
 
   elements.galleryGrid.innerHTML = `
     <article class="gallery-item gallery-item-state gallery-item-featured gallery-tone-cream">
-      <span class="pill">Primer recuerdo</span>
-      <h3>Todavía no hay recuerdos cargados</h3>
+      <span class="pill">Primer momento</span>
+      <h3>Todavía no hay recuerdos</h3>
       <p>El primero puede ser el tuyo. Subí una foto o video, dejá un mensaje o ambas cosas.</p>
+      <a class="btn btn-primary" href="#compartir-recuerdo">Sumar recuerdo</a>
     </article>
   `;
 
@@ -837,7 +869,8 @@ export function renderGalleryError() {
     <article class="gallery-item gallery-item-state gallery-item-featured gallery-tone-clay">
       <span class="pill">Ups</span>
       <h3>No se pudo cargar la galería</h3>
-      <p>Probá nuevamente en unos segundos. La app va a volver a intentar refrescarla.</p>
+      <p>Probá nuevamente en unos segundos. Si querés, también podés recargar la página.</p>
+      <a class="btn btn-secondary" href="./">Recargar álbum</a>
     </article>
   `;
 
@@ -876,8 +909,8 @@ function renderGalleryActions() {
   elements.galleryActions.classList.toggle('hidden', !shouldShowActions);
   elements.galleryLoadMoreButton.disabled = isBusy;
   elements.galleryLoadMoreButton.textContent = state.galleryLoadingMore
-    ? 'Cargando más recuerdos...'
-    : 'Cargar más recuerdos';
+    ? 'Cargando más momentos...'
+    : 'Ver más momentos';
 
   if (!elements.galleryLoadMoreStatus) return;
 
@@ -886,9 +919,9 @@ function renderGalleryActions() {
   } else if (!state.galleryHasMore) {
     elements.galleryLoadMoreStatus.textContent = `Ya se cargaron ${state.galleryItems.length} recuerdos.`;
   } else if (state.galleryLoadingMore) {
-    elements.galleryLoadMoreStatus.textContent = 'Buscando más fotos, videos y mensajes del evento...';
+    elements.galleryLoadMoreStatus.textContent = 'Buscando más fotos, videos y mensajes...';
   } else {
-    elements.galleryLoadMoreStatus.textContent = `${state.galleryItems.length} recuerdos cargados hasta ahora.`;
+    elements.galleryLoadMoreStatus.textContent = `${state.galleryItems.length} recuerdos en el álbum hasta ahora.`;
   }
 }
 

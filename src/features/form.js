@@ -15,6 +15,7 @@ import { clearDraft } from './draft.js';
 let submitLock = false;
 let formBound = false;
 let currentGuidedStep = 0;
+let lastSuccessTrigger = null;
 
 const DEFAULT_UPLOAD_TITLE = 'Elegí una foto o video para sumar al álbum';
 const DEFAULT_UPLOAD_SUBTITLE = `JPG, PNG, WEBP, HEIC · hasta ${CONFIG.maxImageMb} MB / Videos MP4, WEBM, MOV · hasta ${CONFIG.maxVideoMb} MB`;
@@ -51,6 +52,34 @@ function setSubmitStage(title, detail = '') {
 
 function clearSubmissionStatus() {
   setSubmissionStatus('', '', 'busy');
+}
+
+function setSubmittingUx(isBusy, label = 'Publicar recuerdo') {
+  const submitButton = elements.submitButton;
+  const form = elements.guestForm;
+
+  form?.classList.toggle('is-busy', Boolean(isBusy));
+
+  if (!submitButton) return;
+
+  if (!submitButton.dataset.defaultLabel) {
+    submitButton.dataset.defaultLabel = submitButton.textContent.trim() || 'Publicar recuerdo';
+  }
+
+  submitButton.disabled = Boolean(isBusy);
+  submitButton.classList.toggle('is-loading', Boolean(isBusy));
+  submitButton.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+  submitButton.textContent = isBusy ? label : submitButton.dataset.defaultLabel;
+}
+
+function getSuccessModalFocusableElements() {
+  if (!elements.successModal || elements.successModal.classList.contains('hidden')) return [];
+
+  return Array.from(
+    elements.successModal.querySelectorAll(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((node) => !node.classList.contains('hidden'));
 }
 
 function getFieldWrapper(element) {
@@ -121,7 +150,7 @@ function setUploadProcessingUx() {
   }
 
   if (subtitle) {
-    subtitle.textContent = 'Validando formato y tamaño antes de guardar el recuerdo';
+    subtitle.textContent = 'Revisando que el archivo esté listo para subir';
   }
 }
 
@@ -132,7 +161,7 @@ function setUploadSelectedUx(file, meta = null) {
   shell?.classList.add('is-selected');
 
   if (title) {
-    title.textContent = getMediaKind(file) === 'video' ? 'Video listo para sumarse al recuerdo' : 'Foto lista para sumarse al recuerdo';
+    title.textContent = getMediaKind(file) === 'video' ? 'Video listo para el álbum' : 'Foto lista para el álbum';
   }
 
   if (subtitle) {
@@ -285,7 +314,7 @@ async function handleImageInputChange() {
     if (result.compressed) {
       showMessage(`Foto optimizada: ${formatBytes(result.originalSize)} → ${formatBytes(result.finalSize)} 🤎`, 'success');
     } else {
-      showMessage(getMediaKind(nextFile) === 'video' ? 'El video quedó listo para subirse junto con tu recuerdo 🤎' : 'La foto quedó lista para subirse junto con tu recuerdo 🤎', 'success');
+      showMessage(getMediaKind(nextFile) === 'video' ? 'El video quedó listo para subir 🤎' : 'La foto quedó lista para subir 🤎', 'success');
     }
   } catch (error) {
     console.error(error);
@@ -332,7 +361,7 @@ function resetSuccessModalMedia() {
   }
 }
 
-function closeSuccessModal({ focusForm = false } = {}) {
+function closeSuccessModal({ focusForm = false, restoreFocus = true } = {}) {
   if (!elements.successModal) return;
 
   elements.successModal.classList.add('hidden');
@@ -342,12 +371,17 @@ function closeSuccessModal({ focusForm = false } = {}) {
   if (focusForm) {
     document.getElementById('compartir-recuerdo')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
     elements.guestNameInput?.focus({ preventScroll: true });
+  } else if (restoreFocus && lastSuccessTrigger && typeof lastSuccessTrigger.focus === 'function') {
+    lastSuccessTrigger.focus({ preventScroll: true });
   }
+
+  lastSuccessTrigger = null;
 }
 
 function openSuccessModal({ name, message, mediaUrl, mediaKind }) {
   if (!elements.successModal) return;
 
+  lastSuccessTrigger = document.activeElement;
   resetSuccessModalMedia();
 
   const safeName = String(name || '').trim();
@@ -400,13 +434,37 @@ function bindSuccessModal() {
   });
 
   elements.successModalAnother?.addEventListener('click', () => {
-    closeSuccessModal({ focusForm: true });
+    closeSuccessModal({ focusForm: true, restoreFocus: false });
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape' || elements.successModal?.classList.contains('hidden')) return;
-    event.preventDefault();
-    closeSuccessModal();
+    if (elements.successModal?.classList.contains('hidden')) return;
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeSuccessModal();
+      return;
+    }
+
+    if (event.key === 'Tab') {
+      const focusable = getSuccessModalFocusableElements();
+      if (!focusable.length) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+        return;
+      }
+
+      if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
   });
 }
 
@@ -415,7 +473,7 @@ async function handleSubmit(event) {
 
   if (!state.sessionReady) {
     setGuidedStep(3, { scroll: true });
-    showMessage('Primero completá la verificación para poder guardar tu recuerdo.', 'error');
+    showMessage('Primero completá la confirmación para poder publicar.', 'error');
     setSubmissionStatus('Falta la verificación', 'Completá el CAPTCHA del último paso y volvé a intentar.', 'error');
     return;
   }
@@ -448,15 +506,17 @@ async function handleSubmit(event) {
   }
 
   if (!tryAcquireSubmitLock()) {
+    showMessage('Ya estamos publicando tu recuerdo. Esperá unos segundos.', '');
     return;
   }
 
   try {
-    setSubmitStage('Estamos guardando tu recuerdo...', 'Estamos preparando la carga. Si es video, puede tardar un poco más.');
+    setSubmittingUx(true, 'Publicando...');
+    setSubmitStage('Estamos publicando tu recuerdo...', 'Estamos preparando la carga. Si es video, puede tardar un poco más.');
 
     await ensureAnonymousSession();
 
-    setSubmitStage('Registrando tu nombre...', 'Estamos asociando este recuerdo a quien lo comparte.');
+    setSubmitStage('Guardando tu nombre...', 'Estamos dejando listo el recuerdo.');
     const guest = await ensureGuest(name);
 
     let imagePath = null;
@@ -469,14 +529,17 @@ async function handleSubmit(event) {
         throw new Error(fileValidation.message);
       }
 
+      const isVideoUpload = getMediaKind(file) === 'video';
+      setSubmittingUx(true, isVideoUpload ? 'Subiendo video...' : 'Subiendo foto...');
       setSubmitStage(
-        getMediaKind(file) === 'video' ? 'Subiendo el video al álbum...' : 'Subiendo la foto al álbum...',
-        getMediaKind(file) === 'video' ? 'Los videos pueden tardar más. No cierres esta pantalla.' : 'Estamos guardando la foto en el álbum.'
+        isVideoUpload ? 'Subiendo el video al álbum...' : 'Subiendo la foto al álbum...',
+        isVideoUpload ? 'Los videos pueden tardar más. No cierres esta pantalla.' : 'Estamos guardando la foto en el álbum.'
       );
       imagePath = await uploadImage(file);
     }
 
-    setSubmitStage('Publicando tu recuerdo...', 'Ya casi está listo para aparecer en el álbum.');
+    setSubmittingUx(true, 'Guardando...');
+    setSubmitStage('Sumándolo al álbum...', 'Ya casi está listo.');
     await createMemory({
       guestId: guest.id,
       message,
@@ -487,7 +550,7 @@ async function handleSubmit(event) {
     const uploadedMediaKind = imagePath ? getMediaKind(imagePath) : 'unknown';
 
     resetFormUx();
-    showMessage('¡Listo! Tu recuerdo ya forma parte del álbum 🤎', 'success');
+    showMessage('¡Listo! Tu recuerdo ya quedó en el álbum 🤎', 'success');
     setSubmissionStatus('Recuerdo guardado', 'Ya forma parte del álbum compartido.', 'success');
 
     await loadGallery({ silent: false, reset: true });
@@ -500,11 +563,12 @@ async function handleSubmit(event) {
   } catch (error) {
     console.error(error);
 
-    const nextMessage = error?.message || 'Ocurrió un error al guardar el recuerdo.';
+    const nextMessage = error?.message || 'No pudimos publicar el recuerdo. Probá de nuevo.';
     setSubmissionStatus('No se pudo guardar', nextMessage, 'error');
     showMessage(nextMessage, 'error');
   } finally {
     releaseSubmitLock();
+    setSubmittingUx(false);
   }
 }
 

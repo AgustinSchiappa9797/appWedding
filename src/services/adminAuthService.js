@@ -4,7 +4,7 @@ export async function signInAdmin({ email, password, captchaToken }) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
 
   if (!normalizedEmail || !password) {
-    throw new Error('Ingresá email y contraseña admin.');
+    throw new Error('Ingresá email y contraseña.');
   }
 
   if (!captchaToken) {

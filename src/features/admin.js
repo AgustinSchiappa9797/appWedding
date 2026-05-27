@@ -59,7 +59,7 @@ function renderAdminList() {
   if (!state.galleryItems.length) {
     elements.adminList.innerHTML = `
       <article class="admin-item admin-item-empty">
-        <p>No hay recuerdos cargados todavía.</p>
+        <p>Todavía no hay recuerdos en el álbum.</p>
       </article>
     `;
     return;
@@ -160,7 +160,7 @@ async function logoutAdmin() {
 async function refreshAdminList() {
   if (adminBusy) return;
   adminBusy = true;
-  setAdminStatus('Actualizando recuerdos...');
+  setAdminStatus('Actualizando álbum...');
 
   try {
     await loadGallery({ silent: true, reset: true });
@@ -210,7 +210,7 @@ async function deleteAdminItem(memoryId) {
   const item = state.galleryItems.find((entry) => String(entry.id) === String(memoryId));
   if (!item) return;
 
-  const ok = window.confirm('¿Borrar este recuerdo? También se intentará borrar su foto/video de Storage.');
+  const ok = window.confirm('¿Borrar este recuerdo? También se intentará quitar su foto o video.');
   if (!ok) return;
 
   adminBusy = true;

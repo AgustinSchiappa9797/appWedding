@@ -10,7 +10,7 @@ function setAriaBusy(isBusy) {
 
 function getSubmitButtonLabel() {
   if (state.submitting) {
-    return 'Guardando recuerdo...';
+    return 'Publicando...';
   }
 
   if (state.signingIn) {
@@ -21,7 +21,7 @@ function getSubmitButtonLabel() {
     return 'Completá la verificación';
   }
 
-  return 'Guardar recuerdo';
+  return 'Publicar recuerdo';
 }
 
 export function updateProtectedUiState() {
