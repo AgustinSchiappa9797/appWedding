@@ -13,6 +13,30 @@ let lifecycleEventsBound = false;
 let bootstrapStarted = false;
 let cleanupRan = false;
 
+function isAdminRoute() {
+  return window.location.hash === '#admin';
+}
+
+function syncRouteMode() {
+  const adminRoute = isAdminRoute();
+  document.body.classList.toggle('is-admin-route', adminRoute);
+
+  if (adminRoute) {
+    const adminBody = document.getElementById('admin-body');
+    const adminToggle = document.getElementById('admin-toggle');
+
+    if (adminBody?.classList.contains('hidden')) {
+      adminToggle?.click();
+    }
+
+    window.requestAnimationFrame(() => {
+      document.getElementById('admin-panel')?.scrollIntoView({ block: 'start' });
+    });
+  }
+
+  initScrollReveal();
+}
+
 async function bootstrapAccessState() {
   try {
     const session = await getExistingSession();
@@ -88,6 +112,7 @@ function bindLifecycleEvents() {
   document.addEventListener('visibilitychange', handleVisibilityChange);
   window.addEventListener('beforeunload', cleanupApp);
   window.addEventListener('pagehide', cleanupApp);
+  window.addEventListener('hashchange', syncRouteMode);
 }
 
 async function bootstrap() {
@@ -102,6 +127,7 @@ async function bootstrap() {
   bindGalleryActions();
   bindAdminPanel();
   bindLifecycleEvents();
+  syncRouteMode();
 
   restoreDraft();
   updatePreview();

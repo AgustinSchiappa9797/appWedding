@@ -195,6 +195,23 @@ textarea {
   line-height: 1.7;
 }
 
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.hero-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50px;
+  text-decoration: none;
+  text-align: center;
+}
+
 .hero-highlights {
   display: flex;
   flex-wrap: wrap;
@@ -1443,6 +1460,29 @@ body.lightbox-open {
     min-height: 240px;
   }
 
+  .hero-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 22px;
+  }
+
+  .hero-btn {
+    width: 100%;
+    min-height: 52px;
+    padding-inline: 18px;
+  }
+
+  .hero-highlights {
+    gap: 8px;
+    margin-top: 18px;
+  }
+
+  .hero-chip {
+    padding: 9px 12px;
+    font-size: 0.86rem;
+  }
+
   .hero-polaroid {
     width: 170px;
   }
@@ -1793,7 +1833,64 @@ body.lightbox-open {
   }
 }
 
+body.is-admin-route {
+  min-height: 100vh;
+}
+
+body.is-admin-route [data-public-section] {
+  display: none !important;
+}
+
+.public-footer {
+  display: flex;
+  justify-content: center;
+  margin: 28px 0 0;
+}
+
+.admin-access-link,
+.admin-back-link {
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(91, 63, 45, 0.22);
+  transition: color var(--ease), border-color var(--ease);
+}
+
+.admin-access-link:hover,
+.admin-back-link:hover {
+  color: var(--text);
+  border-color: rgba(91, 63, 45, 0.48);
+}
+
+.admin-head-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+
 .admin-panel {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  margin-top: 0;
+}
+
+body.is-admin-route .admin-panel {
+  position: relative;
+  left: auto;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  opacity: 1;
+  pointer-events: auto;
   margin-top: 24px;
 }
 
@@ -1902,6 +1999,7 @@ body.lightbox-open {
 
 @media (max-width: 700px) {
   .admin-head,
+  .admin-head-actions,
   .admin-toolbar,
   .admin-item-head {
     flex-direction: column;
