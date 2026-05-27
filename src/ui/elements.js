@@ -8,6 +8,7 @@ export const elements = {
   memoryTextCounter: document.getElementById('memory-text-counter'),
   memoryImageInput: document.getElementById('memory-image'),
   formMessage: document.getElementById('form-message'),
+  submissionStatus: document.getElementById('submission-status'),
   previewName: document.getElementById('preview-name'),
   previewDate: document.getElementById('preview-date'),
   previewText: document.getElementById('preview-text'),

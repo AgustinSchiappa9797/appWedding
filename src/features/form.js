@@ -21,6 +21,58 @@ const DEFAULT_UPLOAD_SUBTITLE = `JPG, PNG, WEBP, HEIC · hasta ${CONFIG.maxImage
 
 let uploadShellCache = null;
 
+
+function setSubmissionStatus(title = '', detail = '', type = 'busy') {
+  if (!elements.submissionStatus) return;
+
+  const safeTitle = String(title || '').trim();
+  const safeDetail = String(detail || '').trim();
+
+  if (!safeTitle && !safeDetail) {
+    elements.submissionStatus.classList.add('hidden');
+    elements.submissionStatus.classList.remove('is-busy', 'is-success', 'is-error');
+    return;
+  }
+
+  const titleElement = elements.submissionStatus.querySelector('strong');
+  const detailElement = elements.submissionStatus.querySelector('small');
+
+  if (titleElement) titleElement.textContent = safeTitle;
+  if (detailElement) detailElement.textContent = safeDetail;
+
+  elements.submissionStatus.classList.remove('hidden', 'is-busy', 'is-success', 'is-error');
+  elements.submissionStatus.classList.add(`is-${type}`);
+}
+
+function setSubmitStage(title, detail = '') {
+  showMessage(title, '');
+  setSubmissionStatus(title, detail || 'No cierres esta pantalla mientras termina la carga.', 'busy');
+}
+
+function clearSubmissionStatus() {
+  setSubmissionStatus('', '', 'busy');
+}
+
+function getFieldWrapper(element) {
+  return element?.closest?.('.field') || null;
+}
+
+function clearFieldError(element) {
+  const field = getFieldWrapper(element);
+  field?.classList.remove('has-error');
+  element?.removeAttribute?.('aria-invalid');
+}
+
+function markFieldError(element) {
+  const field = getFieldWrapper(element);
+  field?.classList.add('has-error');
+  element?.setAttribute?.('aria-invalid', 'true');
+}
+
+function scrollToCurrentGuidedStep() {
+  getEntryPanelElement()?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+
 function getSelectedFile() {
   return state.processedImageFile || null;
 }
@@ -87,7 +139,8 @@ function setUploadSelectedUx(file, meta = null) {
     if (meta?.compressed && meta.originalSize && meta.finalSize) {
       subtitle.textContent = `${file.name} · ${formatBytes(meta.originalSize)} → ${formatBytes(meta.finalSize)} · -${meta.savingsPercent || 0}%`;
     } else {
-      subtitle.textContent = `${file.name} · ${formatBytes(file.size)}`;
+      const extra = getMediaKind(file) === 'video' ? ' · puede tardar un poco más al publicar' : '';
+      subtitle.textContent = `${file.name} · ${formatBytes(file.size)}${extra}`;
     }
   }
 }
@@ -116,6 +169,7 @@ function clearImageSelection({ resetInput = true } = {}) {
   state.selectedImageMeta = null;
   clearPreviewImage();
   resetUploadUx();
+  clearFieldError(elements.memoryImageInput);
 }
 
 function applyFieldConstraints() {
@@ -166,10 +220,12 @@ function resetFormUx() {
   clearDraft();
   updatePreview();
   syncFormUx();
+  clearSubmissionStatus();
   setGuidedStep(0);
 }
 
-function handleTextInput() {
+function handleTextInput(event) {
+  clearFieldError(event?.target);
   updatePreview();
   syncFormUx();
 }
@@ -189,8 +245,11 @@ async function handleImageInputChange() {
 
   const validation = validateMediaFile(rawFile);
 
+  clearFieldError(elements.memoryImageInput);
+
   if (!validation.ok) {
     clearImageSelection();
+    markFieldError(elements.memoryImageInput);
     setUploadErrorUx(validation.message);
     showMessage(validation.message, 'error');
     return;
@@ -231,6 +290,7 @@ async function handleImageInputChange() {
   } catch (error) {
     console.error(error);
     clearImageSelection();
+    markFieldError(elements.memoryImageInput);
     setUploadErrorUx(error?.message || 'No pudimos procesar ese archivo.');
     showMessage(error?.message || 'No pudimos procesar ese archivo.', 'error');
   }
@@ -354,7 +414,9 @@ async function handleSubmit(event) {
   event.preventDefault();
 
   if (!state.sessionReady) {
+    setGuidedStep(3, { scroll: true });
     showMessage('Primero completá la verificación para poder guardar tu recuerdo.', 'error');
+    setSubmissionStatus('Falta la verificación', 'Completá el CAPTCHA del último paso y volvé a intentar.', 'error');
     return;
   }
 
@@ -365,6 +427,22 @@ async function handleSubmit(event) {
   const validation = validateSubmission({ name, message, file });
 
   if (!validation.ok) {
+    const rawFile = getRawSelectedFile();
+
+    if (name.length < CONFIG.minNameLength || name.length > CONFIG.maxNameLength) {
+      setGuidedStep(0, { scroll: true });
+      markFieldError(elements.guestNameInput);
+      elements.guestNameInput?.focus({ preventScroll: true });
+    } else if (rawFile && !validateMediaFile(rawFile).ok) {
+      setGuidedStep(1, { scroll: true });
+      markFieldError(elements.memoryImageInput);
+    } else {
+      setGuidedStep(2, { scroll: true });
+      markFieldError(elements.memoryTextInput);
+      elements.memoryTextInput?.focus({ preventScroll: true });
+    }
+
+    setSubmissionStatus('Revisá este paso', validation.message, 'error');
     showMessage(validation.message, 'error');
     return;
   }
@@ -374,11 +452,11 @@ async function handleSubmit(event) {
   }
 
   try {
-    showMessage('Estamos guardando tu recuerdo...', '');
+    setSubmitStage('Estamos guardando tu recuerdo...', 'Estamos preparando la carga. Si es video, puede tardar un poco más.');
 
     await ensureAnonymousSession();
 
-    showMessage('Registrando tu nombre para este recuerdo...', '');
+    setSubmitStage('Registrando tu nombre...', 'Estamos asociando este recuerdo a quien lo comparte.');
     const guest = await ensureGuest(name);
 
     let imagePath = null;
@@ -391,11 +469,14 @@ async function handleSubmit(event) {
         throw new Error(fileValidation.message);
       }
 
-      showMessage(getMediaKind(file) === 'video' ? 'Subiendo el video al álbum...' : 'Subiendo la foto al álbum...', '');
+      setSubmitStage(
+        getMediaKind(file) === 'video' ? 'Subiendo el video al álbum...' : 'Subiendo la foto al álbum...',
+        getMediaKind(file) === 'video' ? 'Los videos pueden tardar más. No cierres esta pantalla.' : 'Estamos guardando la foto en el álbum.'
+      );
       imagePath = await uploadImage(file);
     }
 
-    showMessage('Armando tu recuerdo final...', '');
+    setSubmitStage('Publicando tu recuerdo...', 'Ya casi está listo para aparecer en el álbum.');
     await createMemory({
       guestId: guest.id,
       message,
@@ -407,6 +488,7 @@ async function handleSubmit(event) {
 
     resetFormUx();
     showMessage('¡Listo! Tu recuerdo ya forma parte del álbum 🤎', 'success');
+    setSubmissionStatus('Recuerdo guardado', 'Ya forma parte del álbum compartido.', 'success');
 
     await loadGallery({ silent: false, reset: true });
     openSuccessModal({
@@ -419,6 +501,7 @@ async function handleSubmit(event) {
     console.error(error);
 
     const nextMessage = error?.message || 'Ocurrió un error al guardar el recuerdo.';
+    setSubmissionStatus('No se pudo guardar', nextMessage, 'error');
     showMessage(nextMessage, 'error');
   } finally {
     releaseSubmitLock();
@@ -470,11 +553,14 @@ function validateCurrentGuidedStep() {
 
   if (currentGuidedStep === 0) {
     if (name.length < CONFIG.minNameLength) {
+      markFieldError(elements.guestNameInput);
       showMessage(`El nombre debe tener al menos ${CONFIG.minNameLength} caracteres.`, 'error');
-      elements.guestNameInput?.focus();
+      scrollToCurrentGuidedStep();
+      elements.guestNameInput?.focus({ preventScroll: true });
       return false;
     }
 
+    clearFieldError(elements.guestNameInput);
     return true;
   }
 
@@ -483,19 +569,27 @@ function validateCurrentGuidedStep() {
     const validation = validateMediaFile(rawFile);
 
     if (!validation.ok) {
+      markFieldError(elements.memoryImageInput);
+      setUploadErrorUx(validation.message);
       showMessage(validation.message, 'error');
+      scrollToCurrentGuidedStep();
       return false;
     }
 
+    clearFieldError(elements.memoryImageInput);
     return true;
   }
 
   if (currentGuidedStep === 2) {
     if (!message && !file) {
+      markFieldError(elements.memoryTextInput);
       showMessage('Podés dejar solo un mensaje o subir una foto/video, pero necesitamos al menos uno de los dos.', 'error');
+      scrollToCurrentGuidedStep();
+      elements.memoryTextInput?.focus({ preventScroll: true });
       return false;
     }
 
+    clearFieldError(elements.memoryTextInput);
     return true;
   }
 

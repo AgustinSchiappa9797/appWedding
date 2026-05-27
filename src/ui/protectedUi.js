@@ -35,6 +35,8 @@ export function updateProtectedUiState() {
   elements.memoryTextInput.disabled = textInputsDisabled;
 
   elements.submitButton.textContent = getSubmitButtonLabel();
+  elements.submitButton.classList.toggle('is-loading', isBusy);
+  elements.guestForm?.classList.toggle('is-busy', isBusy);
   setAriaBusy(isBusy);
 }
 
