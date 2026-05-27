@@ -243,7 +243,7 @@ function renderStoriesEmpty() {
   elements.storiesRail.innerHTML = `
     <article class="story-card story-card-empty">
       <span class="pill">Próximamente</span>
-      <p>Cuando empiecen a subir fotos o videos, acá vas a ver las historias del evento.</p>
+      <p>Cuando empiecen a subir fotos o videos, acá vas a ver los momentos recientes del evento.</p>
     </article>
   `;
 }
@@ -274,6 +274,7 @@ function renderStoriesRail() {
         <span class="story-avatar">
           <span class="story-ring"></span>
           ${thumb}
+          <span class="story-kind">${isVideo ? 'Video' : 'Foto'}</span>
         </span>
         <span class="story-name">${getSafeAuthor(item)}</span>
         <span class="story-time">${getSafeDate(item)}</span>

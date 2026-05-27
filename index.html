@@ -93,17 +93,17 @@
     <section class="card stories-panel reveal-on-scroll" data-public-section>
       <div class="section-head stories-head">
         <div>
-          <span class="section-kicker">Reciente</span>
-          <h2>Historias de la boda</h2>
-          <p>Las fotos y videos más recientes aparecen como historias para revivir la noche en secuencia.</p>
+          <span class="section-kicker">Momentos</span>
+          <h2>Momentos recientes</h2>
+          <p>Una fila rápida para abrir las últimas fotos y videos como historias, ideal para mirar desde el celular.</p>
         </div>
-        <span class="stories-badge">Recientes</span>
+        <span class="stories-badge">Tocá para ver</span>
       </div>
 
       <div class="stories-rail" id="stories-rail" aria-label="Historias de la boda">
         <article class="story-card story-card-empty">
           <span class="pill">Próximamente</span>
-          <p>Cuando empiecen a subir fotos o videos, acá vas a ver las historias del evento.</p>
+          <p>Cuando empiecen a subir fotos o videos, acá vas a ver los momentos recientes del evento.</p>
         </article>
       </div>
     </section>
@@ -412,6 +412,33 @@
         ›
       </button>
     </div>
+  </div>
+
+  <div class="success-modal hidden" id="success-modal" role="dialog" aria-modal="true" aria-hidden="true"
+    aria-labelledby="success-modal-title">
+    <div class="success-modal-backdrop" id="success-modal-backdrop"></div>
+
+    <article class="success-modal-card">
+      <button type="button" class="success-modal-close" id="success-modal-close" aria-label="Cerrar confirmación">
+        ✕
+      </button>
+
+      <div class="success-modal-icon" aria-hidden="true">🤎</div>
+      <span class="section-kicker">Recuerdo guardado</span>
+      <h2 id="success-modal-title">Gracias por compartir</h2>
+      <p id="success-modal-copy">Tu recuerdo ya forma parte del álbum.</p>
+
+      <div class="success-modal-preview hidden" id="success-modal-preview">
+        <img id="success-modal-image" alt="Recuerdo guardado" class="hidden" />
+        <video id="success-modal-video" class="hidden" controls playsinline></video>
+        <p id="success-modal-message" class="success-modal-message hidden"></p>
+      </div>
+
+      <div class="success-modal-actions">
+        <button type="button" class="btn btn-primary" id="success-modal-gallery">Ver álbum</button>
+        <button type="button" class="btn btn-secondary" id="success-modal-another">Subir otro</button>
+      </div>
+    </article>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

@@ -9,7 +9,7 @@ import { updatePreview, clearPreviewImage, setPreviewImage } from './preview.js'
 import { loadGallery, scrollToGallery } from './gallery.js';
 import { ensureAnonymousSession } from '../services/authService.js';
 import { ensureGuest } from '../services/guestService.js';
-import { uploadImage, createMemory } from '../services/memoryService.js';
+import { uploadImage, createMemory, getImageUrl } from '../services/memoryService.js';
 import { clearDraft } from './draft.js';
 
 let submitLock = false;
@@ -255,6 +255,101 @@ function releaseSubmitLock() {
   state.submitting = false;
 }
 
+function resetSuccessModalMedia() {
+  elements.successModalImage?.classList.add('hidden');
+  elements.successModalVideo?.classList.add('hidden');
+  elements.successModalMessage?.classList.add('hidden');
+  elements.successModalPreview?.classList.add('hidden');
+
+  if (elements.successModalImage) {
+    elements.successModalImage.removeAttribute('src');
+  }
+
+  if (elements.successModalVideo) {
+    elements.successModalVideo.pause?.();
+    elements.successModalVideo.removeAttribute('src');
+    elements.successModalVideo.load?.();
+  }
+}
+
+function closeSuccessModal({ focusForm = false } = {}) {
+  if (!elements.successModal) return;
+
+  elements.successModal.classList.add('hidden');
+  elements.successModal.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('lightbox-open');
+
+  if (focusForm) {
+    document.getElementById('compartir-recuerdo')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    elements.guestNameInput?.focus({ preventScroll: true });
+  }
+}
+
+function openSuccessModal({ name, message, mediaUrl, mediaKind }) {
+  if (!elements.successModal) return;
+
+  resetSuccessModalMedia();
+
+  const safeName = String(name || '').trim();
+  const safeMessage = String(message || '').trim();
+  const isVideo = mediaKind === 'video';
+  const hasMedia = Boolean(mediaUrl);
+
+  if (elements.successModalTitle) {
+    elements.successModalTitle.textContent = safeName ? `Gracias, ${safeName}` : 'Gracias por compartir';
+  }
+
+  if (elements.successModalCopy) {
+    elements.successModalCopy.textContent = hasMedia
+      ? `Tu ${isVideo ? 'video' : 'foto'} ya forma parte del álbum.`
+      : 'Tu mensaje ya forma parte del álbum.';
+  }
+
+  if (hasMedia && elements.successModalPreview) {
+    elements.successModalPreview.classList.remove('hidden');
+
+    if (isVideo && elements.successModalVideo) {
+      elements.successModalVideo.src = mediaUrl;
+      elements.successModalVideo.classList.remove('hidden');
+    } else if (elements.successModalImage) {
+      elements.successModalImage.src = mediaUrl;
+      elements.successModalImage.alt = `Recuerdo compartido por ${safeName || 'invitado'}`;
+      elements.successModalImage.classList.remove('hidden');
+    }
+  }
+
+  if (safeMessage && elements.successModalMessage) {
+    elements.successModalPreview?.classList.remove('hidden');
+    elements.successModalMessage.textContent = safeMessage;
+    elements.successModalMessage.classList.remove('hidden');
+  }
+
+  elements.successModal.classList.remove('hidden');
+  elements.successModal.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('lightbox-open');
+  elements.successModalGallery?.focus();
+}
+
+function bindSuccessModal() {
+  elements.successModalClose?.addEventListener('click', () => closeSuccessModal());
+  elements.successModalBackdrop?.addEventListener('click', () => closeSuccessModal());
+
+  elements.successModalGallery?.addEventListener('click', () => {
+    closeSuccessModal();
+    scrollToGallery();
+  });
+
+  elements.successModalAnother?.addEventListener('click', () => {
+    closeSuccessModal({ focusForm: true });
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || elements.successModal?.classList.contains('hidden')) return;
+    event.preventDefault();
+    closeSuccessModal();
+  });
+}
+
 async function handleSubmit(event) {
   event.preventDefault();
 
@@ -307,11 +402,19 @@ async function handleSubmit(event) {
       imagePath,
     });
 
+    const uploadedMediaUrl = imagePath ? await getImageUrl(imagePath) : null;
+    const uploadedMediaKind = imagePath ? getMediaKind(imagePath) : 'unknown';
+
     resetFormUx();
     showMessage('¡Listo! Tu recuerdo ya forma parte del álbum 🤎', 'success');
 
     await loadGallery({ silent: false, reset: true });
-    scrollToGallery();
+    openSuccessModal({
+      name,
+      message,
+      mediaUrl: uploadedMediaUrl,
+      mediaKind: uploadedMediaKind,
+    });
   } catch (error) {
     console.error(error);
 
@@ -434,6 +537,7 @@ export function bindForm() {
   bindImageInput();
   bindGuidedForm();
   bindSubmit();
+  bindSuccessModal();
   syncFormUx();
   setGuidedStep(0);
 }
