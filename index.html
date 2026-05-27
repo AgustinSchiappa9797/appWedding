@@ -139,58 +139,106 @@
           <p>Tu nombre será visible para identificar quién compartió cada recuerdo.</p>
         </div>
 
-        <div class="progress-pills" aria-hidden="true">
-          <span class="progress-pill">Nombre</span>
-          <span class="progress-pill">Mensaje, foto o video</span>
-          <span class="progress-pill">Verificación</span>
+        <div class="progress-pills guided-progress" aria-label="Progreso para compartir recuerdo">
+          <span class="progress-pill is-active" data-progress-step="0">1. Nombre</span>
+          <span class="progress-pill" data-progress-step="1">2. Foto o video</span>
+          <span class="progress-pill" data-progress-step="2">3. Mensaje</span>
+          <span class="progress-pill" data-progress-step="3">4. Publicar</span>
         </div>
 
-        <form id="guest-form" class="stack-lg">
-          <div class="field">
-            <div class="field-head">
-              <label for="guest-name">Nombre</label>
-              <span class="field-counter" id="guest-name-counter" aria-live="polite">0/32</span>
+        <form id="guest-form" class="stack-lg guided-form" novalidate>
+          <section class="guided-step is-active" data-form-step="0" aria-label="Paso 1 de 4">
+            <div class="guided-step-head">
+              <span class="guided-step-count">Paso 1 de 4</span>
+              <h3>¿Quién comparte este recuerdo?</h3>
+              <p>Usamos tu nombre para que los novios sepan quién dejó cada foto, video o mensaje.</p>
             </div>
-            <input id="guest-name" name="guest-name" type="text" maxlength="32" placeholder="Ej: Agus" required
-              autocomplete="name" />
-            <small>Podés usar tu nombre aunque otro invitado lo haya escrito igual.</small>
-          </div>
 
-          <div class="field">
-            <div class="field-head">
-              <label for="memory-text">Mensaje o recuerdo</label>
-              <span class="field-counter" id="memory-text-counter" aria-live="polite">0/500</span>
+            <div class="field">
+              <div class="field-head">
+                <label for="guest-name">Nombre</label>
+                <span class="field-counter" id="guest-name-counter" aria-live="polite">0/32</span>
+              </div>
+              <input id="guest-name" name="guest-name" type="text" maxlength="32" placeholder="Ej: Agus" required
+                autocomplete="name" />
+              <small>Podés usar tu nombre aunque otro invitado lo haya escrito igual.</small>
             </div>
-            <textarea id="memory-text" name="memory-text" rows="5" maxlength="500"
-              placeholder="Ej: La entrada estuvo hermosa, los queremos mucho."></textarea>
-          </div>
 
-          <div class="field">
-            <label for="memory-image">Foto o video <span class="label-optional">(opcional)</span></label>
-            <div class="upload-shell">
-              <input id="memory-image" name="memory-image" type="file" accept="image/png,image/jpeg,image/webp,image/heic,image/heif,video/mp4,video/webm,video/quicktime,.heic,.heif,.mov" />
-              <div class="upload-surface">
-                <div class="upload-icon">📸</div>
-                <div class="upload-copy">
-                  <strong>Elegí una foto o video para sumar al álbum</strong>
-                  <span>JPG, PNG, WEBP, HEIC · hasta 6 MB / Videos MP4, WEBM o MOV · hasta 35 MB</span>
+            <div class="guided-actions">
+              <button type="button" class="btn btn-primary guided-next" data-guided-next>Continuar</button>
+            </div>
+          </section>
+
+          <section class="guided-step" data-form-step="1" aria-label="Paso 2 de 4">
+            <div class="guided-step-head">
+              <span class="guided-step-count">Paso 2 de 4</span>
+              <h3>Subí una foto o video</h3>
+              <p>Sumá un momento de la noche. También podés seguir sin archivo y dejar solo un mensaje.</p>
+            </div>
+
+            <div class="field">
+              <label for="memory-image">Foto o video <span class="label-optional">(opcional)</span></label>
+              <div class="upload-shell">
+                <input id="memory-image" name="memory-image" type="file" accept="image/png,image/jpeg,image/webp,image/heic,image/heif,video/mp4,video/webm,video/quicktime,.heic,.heif,.mov" />
+                <div class="upload-surface">
+                  <div class="upload-icon">📸</div>
+                  <div class="upload-copy">
+                    <strong>Elegí una foto o video para sumar al álbum</strong>
+                    <span>JPG, PNG, WEBP, HEIC · hasta 6 MB / Videos MP4, WEBM o MOV · hasta 35 MB</span>
+                  </div>
                 </div>
               </div>
+              <small>Los videos pesados pueden tardar más en subir. Máximo 35 MB.</small>
             </div>
-            <small>Podés compartir solo mensaje, solo foto/video o ambas cosas.</small>
-          </div>
 
-          <div class="field">
-            <label>Verificación</label>
-            <div id="turnstile-container" class="cf-turnstile" data-sitekey="0x4AAAAAACxPfDG6_foE04af"
-              data-callback="onTurnstileSuccess" data-error-callback="onTurnstileError"
-              data-expired-callback="onTurnstileExpired" data-timeout-callback="onTurnstileTimeout"></div>
-            <small>Esto nos ayuda a evitar spam y bots durante el evento.</small>
-          </div>
+            <div class="guided-actions guided-actions-split">
+              <button type="button" class="btn btn-secondary" data-guided-back>Volver</button>
+              <button type="button" class="btn btn-primary guided-next" data-guided-next>Continuar</button>
+            </div>
+          </section>
 
-          <div class="inline-actions">
-            <button type="submit" class="btn btn-primary">Guardar recuerdo</button>
-          </div>
+          <section class="guided-step" data-form-step="2" aria-label="Paso 3 de 4">
+            <div class="guided-step-head">
+              <span class="guided-step-count">Paso 3 de 4</span>
+              <h3>¿Querés dejar un mensaje?</h3>
+              <p>Es opcional, pero suma mucho para recordar el momento después de la boda.</p>
+            </div>
+
+            <div class="field">
+              <div class="field-head">
+                <label for="memory-text">Mensaje o recuerdo</label>
+                <span class="field-counter" id="memory-text-counter" aria-live="polite">0/500</span>
+              </div>
+              <textarea id="memory-text" name="memory-text" rows="5" maxlength="500"
+                placeholder="Ej: La entrada estuvo hermosa, los queremos mucho."></textarea>
+            </div>
+
+            <div class="guided-actions guided-actions-split">
+              <button type="button" class="btn btn-secondary" data-guided-back>Volver</button>
+              <button type="button" class="btn btn-primary guided-next" data-guided-next>Continuar</button>
+            </div>
+          </section>
+
+          <section class="guided-step" data-form-step="3" aria-label="Paso 4 de 4">
+            <div class="guided-step-head">
+              <span class="guided-step-count">Paso 4 de 4</span>
+              <h3>Último paso: verificá y publicá</h3>
+              <p>Revisá la vista previa y guardá tu recuerdo en el álbum compartido.</p>
+            </div>
+
+            <div class="field">
+              <label>Verificación</label>
+              <div id="turnstile-container" class="cf-turnstile" data-sitekey="0x4AAAAAACxPfDG6_foE04af"
+                data-callback="onTurnstileSuccess" data-error-callback="onTurnstileError"
+                data-expired-callback="onTurnstileExpired" data-timeout-callback="onTurnstileTimeout"></div>
+              <small>Esto nos ayuda a evitar spam y bots durante el evento.</small>
+            </div>
+
+            <div class="guided-actions guided-actions-split">
+              <button type="button" class="btn btn-secondary" data-guided-back>Volver</button>
+              <button type="submit" class="btn btn-primary">Guardar recuerdo</button>
+            </div>
+          </section>
         </form>
 
         <div id="form-message" class="feedback" role="status" aria-live="polite"></div>

@@ -14,6 +14,7 @@ import { clearDraft } from './draft.js';
 
 let submitLock = false;
 let formBound = false;
+let currentGuidedStep = 0;
 
 const DEFAULT_UPLOAD_TITLE = 'Elegí una foto o video para sumar al álbum';
 const DEFAULT_UPLOAD_SUBTITLE = `JPG, PNG, WEBP, HEIC · hasta ${CONFIG.maxImageMb} MB / Videos MP4, WEBM, MOV · hasta ${CONFIG.maxVideoMb} MB`;
@@ -165,6 +166,7 @@ function resetFormUx() {
   clearDraft();
   updatePreview();
   syncFormUx();
+  setGuidedStep(0);
 }
 
 function handleTextInput() {
@@ -320,6 +322,104 @@ async function handleSubmit(event) {
   }
 }
 
+
+function getGuidedStepElements() {
+  return Array.from(document.querySelectorAll('[data-form-step]'));
+}
+
+function getGuidedProgressElements() {
+  return Array.from(document.querySelectorAll('[data-progress-step]'));
+}
+
+function getEntryPanelElement() {
+  return document.getElementById('compartir-recuerdo');
+}
+
+function setGuidedStep(nextStep, { scroll = false } = {}) {
+  const steps = getGuidedStepElements();
+  const progressItems = getGuidedProgressElements();
+
+  if (!steps.length) return;
+
+  const normalizedStep = Math.max(0, Math.min(nextStep, steps.length - 1));
+  currentGuidedStep = normalizedStep;
+
+  steps.forEach((step, index) => {
+    const isActive = index === normalizedStep;
+    step.classList.toggle('is-active', isActive);
+    step.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+  });
+
+  progressItems.forEach((item, index) => {
+    item.classList.toggle('is-active', index === normalizedStep);
+    item.classList.toggle('is-complete', index < normalizedStep);
+  });
+
+  if (scroll) {
+    getEntryPanelElement()?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+}
+
+function validateCurrentGuidedStep() {
+  const name = elements.guestNameInput?.value.trim() || '';
+  const message = elements.memoryTextInput?.value.trim() || '';
+  const file = getSelectedFile();
+
+  if (currentGuidedStep === 0) {
+    if (name.length < CONFIG.minNameLength) {
+      showMessage(`El nombre debe tener al menos ${CONFIG.minNameLength} caracteres.`, 'error');
+      elements.guestNameInput?.focus();
+      return false;
+    }
+
+    return true;
+  }
+
+  if (currentGuidedStep === 1) {
+    const rawFile = getRawSelectedFile();
+    const validation = validateMediaFile(rawFile);
+
+    if (!validation.ok) {
+      showMessage(validation.message, 'error');
+      return false;
+    }
+
+    return true;
+  }
+
+  if (currentGuidedStep === 2) {
+    if (!message && !file) {
+      showMessage('Podés dejar solo un mensaje o subir una foto/video, pero necesitamos al menos uno de los dos.', 'error');
+      return false;
+    }
+
+    return true;
+  }
+
+  return true;
+}
+
+function bindGuidedForm() {
+  const steps = getGuidedStepElements();
+
+  if (!steps.length) return;
+
+  document.querySelectorAll('[data-guided-next]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (!validateCurrentGuidedStep()) return;
+      setGuidedStep(currentGuidedStep + 1, { scroll: true });
+    });
+  });
+
+  document.querySelectorAll('[data-guided-back]').forEach((button) => {
+    button.addEventListener('click', () => {
+      setGuidedStep(currentGuidedStep - 1, { scroll: true });
+    });
+  });
+
+  setGuidedStep(0);
+}
+
 function bindSubmit() {
   elements.guestForm?.addEventListener('submit', handleSubmit);
 }
@@ -332,6 +432,8 @@ export function bindForm() {
   resetUploadUx();
   bindPreviewInputs();
   bindImageInput();
+  bindGuidedForm();
   bindSubmit();
   syncFormUx();
+  setGuidedStep(0);
 }

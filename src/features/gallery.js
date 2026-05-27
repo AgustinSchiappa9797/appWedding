@@ -132,6 +132,7 @@ function getGalleryImageMarkup(item, layoutVariant) {
   if (!item.imageUrl) return '';
 
   const author = getSafeAuthor(item);
+  const date = getSafeDate(item);
   const imageIndex = getImageSequenceIndex(item);
   const isVideo = isVideoItem(item);
   const mediaClass = layoutVariant === 'tall'
@@ -153,18 +154,27 @@ function getGalleryImageMarkup(item, layoutVariant) {
       aria-label="Ver ${label} ampliada de ${author}"
     >
       ${mediaMarkup}
-      <span class="gallery-media-hint">Ver ${label}</span>
+      <span class="gallery-media-overlay" aria-hidden="true">
+        <span class="gallery-media-author">${author}</span>
+        <span class="gallery-media-date">${date}</span>
+      </span>
+      <span class="gallery-media-hint">${isVideo ? 'Reproducir' : 'Ampliar'}</span>
     </button>
   `;
 }
 
 function getGalleryBodyMarkup(item, layoutVariant) {
   const safeMessage = getSafeMessage(item);
+  const hasImage = Boolean(item.imageUrl);
+
+  if (!safeMessage && hasImage) {
+    return '';
+  }
 
   if (!safeMessage) {
     return `
       <p class="gallery-empty-copy">
-        Compartió una foto o video para sumar a este álbum del evento.
+        Compartió un recuerdo para sumar a este álbum del evento.
       </p>
     `;
   }
@@ -192,8 +202,7 @@ function buildGalleryItemHtml(item, index) {
   const layoutVariant = getLayoutVariant(item, index);
   const authorInitial = getAuthorInitial(item.author);
 
-  return `
-    <article class="gallery-item gallery-item-${layoutVariant} ${toneClass} ${hasImage ? 'gallery-item-with-image' : 'gallery-item-text-only'} ${hasVideo ? 'gallery-item-with-video' : ''}">
+  const cardHeadMarkup = hasImage ? '' : `
       <div class="gallery-card-head">
         <div class="gallery-author-pill">
           <span class="gallery-author-mark" aria-hidden="true">${authorInitial}</span>
@@ -201,6 +210,11 @@ function buildGalleryItemHtml(item, index) {
         </div>
         <small class="gallery-date">${safeDate}</small>
       </div>
+  `;
+
+  return `
+    <article class="gallery-item gallery-item-${layoutVariant} ${toneClass} ${hasImage ? 'gallery-item-with-image' : 'gallery-item-text-only'} ${hasVideo ? 'gallery-item-with-video' : ''}">
+      ${cardHeadMarkup}
 
       ${getGalleryImageMarkup(item, layoutVariant)}
 
